@@ -1083,8 +1083,14 @@ function writemenuheader {
 #[cf]
 #[of]:function copybasemenu {
 function copybasemenu {
+  typeset i
   if [[ ! -s "${gl_menufile}" ]] ; then
-    cp -f /usr/share/icewm/${gl_menufile##*/} "${gl_menufile}"
+    for i in /usr/share/icewm /etc/X11/icewm ; do
+      if [[ -e "${i}/menu" ]] ; then
+        cp -f ${i}/${gl_menufile##*/} "${gl_menufile}"
+        break
+      fi
+    done
   fi
 }
 #[cf]
@@ -1135,6 +1141,8 @@ if [[ -s "${gl_mimetypescache}" ]] ; then
   . "${gl_mimetypescache}"
 elif [[ -s "/usr/share/icewm/${gl_mimetypescache##*/}" ]] ; then
   . "/usr/share/icewm/${gl_mimetypescache##*/}"
+elif [[ -s "/etc/X11/icewm/${gl_mimetypescache##*/}" ]] ; then
+  . "/etc/X11/icewm/${gl_mimetypescache##*/}"
 fi
 #[cf]
 #[cf]

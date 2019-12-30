@@ -1,3 +1,5 @@
-* Version 1.0.0 (14 July 2009)
+* Version 1.0.0 (2009-07-14)
 - Decided after 6 years of toying in my spare time with dlist, I would finally publish it.
 
+* Version 1.0.1 (2009-08-11)
+- Added missing paths for configs residing in /etc/X11/icewm
