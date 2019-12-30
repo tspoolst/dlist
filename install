@@ -1,0 +1,424 @@
+#!/bin/bash
+#[of]:description
+#[c]  dlist  aka "the ICEWM quick direcotry lister"
+#[c]
+#[c]  Copyright (C) 2003, 2009  Trent Spoolstra    (ts@worldiss.com)
+#[c]
+#[c]  This program is free software: you can redistribute it and/or modify
+#[c]  it under the terms of the GNU General Public License as published by
+#[c]  the Free Software Foundation, either version 3 of the License, or
+#[c]  (at your option) any later version.
+#[c]
+#[c]  This program is distributed in the hope that it will be useful,
+#[c]  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#[c]  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#[c]  GNU General Public License for more details.
+#[c]
+#[c]  You should have received a copy of the GNU General Public License
+#[c]  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#[c]
+#[c]
+#[c]  The "ICEWM quick direcotry lister" has been built using tag based code folding, with
+#[c]  the aid of an excelent editor named "code-browser"
+#[c]    http://code-browser.sourceforge.net/
+#[c]  If you are not using a tag based editor to read/edit this, your ARE ready to suffer!
+#[cf]
+#[of]:functions
+##if using bash insure extglob is on
+[[ -n "$BASH_VERSION" ]] && shopt -s extglob
+
+#[of]:base
+#[of]:function die {
+function die {
+  typeset lc_die_exit=$1
+  shift
+  echo "$@" >&2
+  exit ${lc_die_exit}
+}
+#[cf]
+#[of]:function cleancat {
+function cleancat {
+  if [[ -n "$1" ]] ; then
+    [[ ! -r "$1" ]] && die 1 "could not read file $1"
+    grep -v -e "^[[:blank:]]*$" -e "^[[:blank:]]*#" "$1" 2>/dev/null
+  else
+    grep -v -e "^[[:blank:]]*$" -e "^[[:blank:]]*#" 2>/dev/null
+  fi
+}
+#[cf]
+#[of]:function isnum {
+function isnum {
+  #set IFS to a sane value
+  typeset IFS=' 	
+'
+  if [[ "$1" == ?(+|-)+([0-9]) ]] ; then
+   return 0
+  fi
+  return 1
+}
+#[cf]
+#[of]:array
+##a colloction of array handling tools
+#[of]:function aset {
+function aset {
+#[of]:  usage
+  if false ; then
+    echo "Usage: aset var [val val val ...]"
+    echo "Error: must have at least 1 args"
+    echo "Description:"
+    echo "  sets a given array variable"
+    echo "  this exist because, there is no common way of setting an array in ksh and bash"
+    echo "Examples:"
+    echo "  i.e.  aset gl_BusinessDays mon tue wed thu fri"
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+}
+if [[ -n "$BASH_VERSION" ]] ; then
+  function aset {
+    eval "
+      shift
+      $1=(\"\$@\")
+    "
+  }
+else
+  function aset {
+    eval "
+      shift
+      set -A $1 -- \"\$@\"
+    "
+  }
+fi
+#[cf]
+#[of]:function asort {
+function asort {
+#[of]:  usage
+  if [[ $# -lt 2 ]] ; then
+    echo "Usage: asort {-|array} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  sorts an array"
+    echo "Examples:"
+    echo '  i.e.  asort a "${a[@]}"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset _array _tmp _size _index
+  aset _array "$@"
+  ashift ! _array
+  _size=${#_array[@]}
+  ((_size-=1))
+  while [[ ${_size} -gt 0 ]] ; do
+    _index=0    
+    while [[ ${_index} -lt ${_size} ]] ; do
+      if [[ "${_array[${_index}]}" > "${_array[$((_index+1))]}" ]] ; then
+        _tmp="${_array[$((_index+1))]}"
+        _array[$((_index+1))]="${_array[${_index}]}"
+        _array[${_index}]="${_tmp}"
+      fi
+      ((_index+=1))
+    done
+    ((_size-=1))
+  done
+  if [[ "$1" = "-" ]] ; then
+    echo "${_array[@]}"
+  else
+    eval "aset $1 \"\${_array[@]}\""
+  fi
+  return 0
+}
+#[cf]
+
+#[of]:function asplit {
+function asplit {
+#[of]:  usage
+  if [[ $# -lt 2 ]] ; then
+    echo "Usage: asplit {array} {delimiter} [string]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  splits a string into an array list"
+    echo "  this emulates the perl function join"
+    echo "Examples:"
+    echo '  i.e.  asplit b : "part1:part2:part3:part4"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset _esc
+  if [[ "$1" = "-e" ]] ; then
+    _esc=true
+    shift
+  fi
+#[of]:  if [[ -z "$2" ]] ; then
+  if [[ -z "$2" ]] ; then
+    eval "
+      shift;shift
+      typeset _string=\"\$*\"
+      while [[ \${#_string} -gt 0 ]] ; do
+        typeset _array[\${#_array[@]}]=\"\${_string%\"\${_string#?}\"}\"
+        _string=\"\${_string#?}\"
+      done
+      if isnum \"$1\" ; then
+        echo \"\${_array[$1]}\"
+      else
+        aset $1 \"\${_array[@]}\"
+      fi
+    "
+#[cf]
+#[of]:  elif ${_esc\:-false} ; then
+  elif ${_esc:-false} ; then
+    eval "
+      shift;shift
+      typeset _array _char
+      typeset _lit=false
+      typeset _index=0
+      typeset _string=\"\$*\"
+
+      while [[ \${#_string} -gt 0 ]] ; do
+        _char=\"\${_string%\"\${_string#?}\"}\"
+        _string=\"\${_string#?}\"
+        if [[ \"\${_char}\" = \"\\\\\" ]] ; then
+          _lit=true
+          continue
+        elif ! \${_lit} && [[ \"\${_char}\" = \"$2\" ]] ; then
+          _array[\${_index}]=\"\${_entry}\"
+          unset _entry
+          let \"_index++\"
+          continue
+        fi
+        _lit=false
+        typeset _entry=\"\${_entry}\${_char}\"
+      done
+      _array[\${_index}]=\"\${_entry}\"
+
+      if isnum \"$1\" ; then
+        echo \"\${_array[$1]}\"
+      else
+        aset $1 \"\${_array[@]}\"
+      fi
+    "
+#[cf]
+#[of]:  else
+  else
+    eval "
+      shift;shift
+      typeset IFS=\"$2\"
+      if isnum \"$1\" ; then
+        set -- \$@
+        eval \"echo \\\"\\\$\$(($1 +1))\\\" \"
+      else
+        if [[ \"\${*%$2}\" = \"\$*\" ]] ; then
+          aset $1 \$@
+        else
+          aset $1 \$@ \"\"
+        fi
+      fi
+    "
+#[cf]
+  fi
+}
+##if first arg is a number it is a zero based position in the string
+##ugh.  yet another lovely backslash forrest.
+#[cf]
+#[of]:function ajoin {
+function ajoin {
+#[of]:  usage
+  if [[ $# -lt 2 ]] ; then
+    echo "Usage: ajoin {var} {delimiter} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  joins a list into a single string"
+    echo "  this emulates the perl function join"
+    echo "Examples:"
+    echo '  i.e.  ajoin a : "${a[@]}"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    shift;shift
+    typeset IFS=\"$2\"
+    if [[ \"$1\" = \"-\" ]] ; then
+      echo \"\$*\"
+    else
+      $1=\"\$*\"
+    fi
+  "
+}
+#[cf]
+
+#[of]:function apush {
+function apush {
+#[of]:  usage
+  if [[ $# -eq 0 ]] ; then
+    echo "Usage: apush {array} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  adds new element/s to the end of an array"
+    echo "  this emulates the perl function unshift"
+    echo "Examples:"
+    echo '  i.e.  apush b "a string"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    shift
+    aset $1 \"\${$1[@]}\" \"\$@\"
+  "
+}
+#[cf]
+#[of]:function apop {
+function apop {
+#[of]:  usage
+  if [[ $# -ne 2 ]] ; then
+    echo "Usage: apop {!|-|var} {array}"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  shift an array 1 element right and return that element in var"
+    echo "  this emulates the perl function shift"
+    echo "Examples:"
+    echo '  i.e.  apop b a'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    if [[ \${#$2[@]} -gt 0 ]] ; then
+      if [[ \"$1\" = \"!\" ]] ; then
+        :
+      elif [[ \"$1\" = \"-\" ]] ; then
+        echo \"\${$2[\$((\${#$2[@]} -1))]}\"
+      else
+        $1=\"\${$2[\$((\${#$2[@]} -1))]}\"
+      fi
+      unset $2[\$((\${#$2[@]} -1))]
+    else
+      return 1
+    fi
+  "
+  return 0
+}
+#[cf]
+
+#[of]:function aunshift {
+function aunshift {
+#[of]:  usage
+  if [[ $# -eq 0 ]] ; then
+    echo "Usage: aunshift {array} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  adds new element/s to the beginning of an array"
+    echo "  this emulates the perl function unshift"
+    echo "Examples:"
+    echo '  i.e.  aunshift b "a string"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    shift
+    aset $1 \"\$@\" \"\${$1[@]}\"
+  "
+}
+#[cf]
+#[of]:function ashift {
+function ashift {
+#[of]:  usage
+  if [[ $# -ne 2 ]] ; then
+    echo "Usage: ashift {!|-|var} {array}"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  shift an array 1 element left and return that element in var"
+    echo "  this emulates the perl function shift"
+    echo "Examples:"
+    echo '  i.e.  ashift b a'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    set -- \"\${$2[@]}\"
+    if [[ \$# -gt 0 ]] ; then
+      if [[ \"$1\" = \"!\" ]] ; then
+        :
+      elif [[ \"$1\" = \"-\" ]] ; then
+        echo \"\$1\"
+      else
+        $1=\"\$1\"
+      fi
+      [[ \$# -gt 0 ]] && shift
+      aset $2 \"\$@\"
+    else
+      return 1
+    fi
+  "
+  return 0
+}
+#[cf]
+#[cf]
+#[cf]
+#[of]:function addmenufile {
+function AddMenuEntry {
+  if ! grep -q "^menufile Quicklist" "$1" ; then
+    echo "menufile Quicklist folder icedlist.menu" >> "$1"
+  fi
+}
+#[cf]
+#[cf]
+#[of]:main
+#[c]
+#[c]ask user md5sum the download in the README
+#[c]must run as root
+#[c]
+
+
+#[of]:setup vars
+_configdir=${1%/}
+#[cf]
+#[of]:locate icewm config dir
+if [[ -z "${_configdir}" ]] ; then
+  for i in /usr/share/icewm /etc/X11/icewm ; do
+    [[ -e "${i}/menu" ]] && _configdir="${i}"
+  done
+else
+  [[ ! -e "${_configdir}/menu" ]] && unset _configdir
+fi
+[[ -z "${_configdir}" ]] && die 1 "unable to locate icewm config dir.
+try: ./install {path to config dir}
+  i.e. ./install /opt/icewm"
+#[cf]
+#[of]:install dlist menu files
+cp -fav icewm/icedlist.{menu,mimetypes} ${_configdir}/ &&
+chmod 644 ${_configdir}/icedlist.{menu,mimetypes}
+#[cf]
+#[of]:add menu entry
+AddMenuEntry ${_configdir}/menu
+#[cf]
+#[of]:eval each local user menus
+while read _line ; do
+  asplit _user : "${_line[@]}"
+  _home="${_user[5]}"
+  if [[ -d "${_home}" ]] ; then
+    #echo "${_user} -- ${_home} --"
+    [[ -e "${_home}/.icewm/menu" ]] && AddMenuEntry ${_home}/.icewm/menu
+#[c]    check version of all data files
+#[c]    apply conversion from version a->b if one exist
+  fi  
+done < <(cleancat /etc/passwd)
+#[cf]
+#[of]:install prog and docs
+cp -avf usr /
+cp -avf COPYING CREDITS ChangeLog INSTALL NEWS README /usr/share/doc/dlist-1/
+#[cf]
+#[cf]

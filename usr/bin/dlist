@@ -1,0 +1,1919 @@
+#!/bin/bash
+#[of]:description
+#[c]  dlist  aka "the ICEWM quick direcotry lister"
+#[c]
+#[c]  Copyright (C) 2003, 2009  Trent Spoolstra    (ts@worldiss.com)
+#[c]
+#[c]  This program is free software: you can redistribute it and/or modify
+#[c]  it under the terms of the GNU General Public License as published by
+#[c]  the Free Software Foundation, either version 3 of the License, or
+#[c]  (at your option) any later version.
+#[c]
+#[c]  This program is distributed in the hope that it will be useful,
+#[c]  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#[c]  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#[c]  GNU General Public License for more details.
+#[c]
+#[c]  You should have received a copy of the GNU General Public License
+#[c]  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#[c]
+#[c]
+#[c]  The "ICEWM quick direcotry lister" has been built using tag based code folding, with
+#[c]  the aid of an excelent editor named "code-browser"
+#[c]    http://code-browser.sourceforge.net/
+#[c]  If you are not using a tag based editor to read/edit this, your ARE ready to suffer!
+#[c]     
+#[c]  Todo:
+#[c]    add icewm configurator
+#[c]    add dvd parser/player
+#[c]    add playlist creator
+#[c]      add entrire dir/recursively
+#[c]      sorting/random/inorder
+#[c]      create-n-launch
+#[c]      output format - not just for xmms
+#[c]
+#[cf]
+#[of]:functions
+##if using bash insure extglob is on
+[[ -n "$BASH_VERSION" ]] && shopt -s extglob
+
+#[of]:base
+#[of]:function cleancat {
+function cleancat {
+  if [[ -n "$1" ]] ; then
+    [[ ! -r "$1" ]] && return 1
+    grep -v -e "^[[:blank:]]*$" -e "^[[:blank:]]*#" "$1" 2>/dev/null
+  else
+    grep -v -e "^[[:blank:]]*$" -e "^[[:blank:]]*#" 2>/dev/null
+  fi
+}
+#[cf]
+#[of]:function tolower {
+if [ -n "$BASH_VERSION" ] ; then
+  function tolower {
+    typeset lc_tolower_data lc_tolower_result
+    if [[ $# = 1 ]] ; then
+      eval lc_tolower_data=\"\${$1}\"
+    else
+      lc_tolower_data="$2"
+    fi
+    typeset lc_tolower_result=$(echo "${lc_tolower_data}" | tr A-Z a-z)
+    if [[ "$1" = "-" ]] ; then
+      echo "${lc_tolower_result}"
+    else
+      eval $1=\"\${lc_tolower_result}\"
+    fi
+    return 0
+  }
+else
+  function tolower {
+    typeset lc_tolower_data lc_tolower_result
+    if [[ $# = 1 ]] ; then
+      eval lc_tolower_data=\"\${$1}\"
+    else
+      lc_tolower_data="$2"
+    fi
+    typeset -l lc_tolower_result="${lc_tolower_data}"
+    if [[ "$1" = "-" ]] ; then
+      echo "${lc_tolower_result}"
+    else
+      eval $1=\"\${lc_tolower_result}\"
+    fi
+    return 0
+  }
+fi
+#[cf]
+#[of]:function isnum {
+function isnum {
+  #set IFS to a sane value
+  typeset IFS=' 	
+'
+  if [[ "$1" == ?(+|-)+([0-9]) ]] ; then
+   return 0
+  fi
+  return 1
+}
+#[cf]
+#[of]:function isset {
+function isset {
+  eval "(( \${$1+1} ))"
+}
+#[cf]
+#[of]:array
+##a colloction of array handling tools
+#[of]:function aset {
+function aset {
+#[of]:  usage
+  if false ; then
+    echo "Usage: aset var [val val val ...]"
+    echo "Error: must have at least 1 args"
+    echo "Description:"
+    echo "  sets a given array variable"
+    echo "  this exist because, there is no common way of setting an array in ksh and bash"
+    echo "Examples:"
+    echo "  i.e.  aset gl_BusinessDays mon tue wed thu fri"
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+}
+if [[ -n "$BASH_VERSION" ]] ; then
+  function aset {
+    eval "
+      shift
+      $1=(\"\$@\")
+    "
+  }
+else
+  function aset {
+    eval "
+      shift
+      set -A $1 -- \"\$@\"
+    "
+  }
+fi
+#[cf]
+#[of]:function asort {
+function asort {
+#[of]:  usage
+  if [[ $# -lt 2 ]] ; then
+    echo "Usage: asort {-|array} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  sorts an array"
+    echo "Examples:"
+    echo '  i.e.  asort a "${a[@]}"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset _array _tmp _size _index
+  aset _array "$@"
+  ashift ! _array
+  _size=${#_array[@]}
+  ((_size-=1))
+  while [[ ${_size} -gt 0 ]] ; do
+    _index=0    
+    while [[ ${_index} -lt ${_size} ]] ; do
+      if [[ "${_array[${_index}]}" > "${_array[$((_index+1))]}" ]] ; then
+        _tmp="${_array[$((_index+1))]}"
+        _array[$((_index+1))]="${_array[${_index}]}"
+        _array[${_index}]="${_tmp}"
+      fi
+      ((_index+=1))
+    done
+    ((_size-=1))
+  done
+  if [[ "$1" = "-" ]] ; then
+    echo "${_array[@]}"
+  else
+    eval "aset $1 \"\${_array[@]}\""
+  fi
+  return 0
+}
+#[cf]
+
+#[of]:function asplit {
+function asplit {
+#[of]:  usage
+  if [[ $# -lt 2 ]] ; then
+    echo "Usage: asplit {array} {delimiter} [string]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  splits a string into an array list"
+    echo "  this emulates the perl function join"
+    echo "Examples:"
+    echo '  i.e.  asplit b : "part1:part2:part3:part4"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset _esc
+  if [[ "$1" = "-e" ]] ; then
+    _esc=true
+    shift
+  fi
+#[of]:  if [[ -z "$2" ]] ; then
+  if [[ -z "$2" ]] ; then
+    eval "
+      shift;shift
+      typeset _string=\"\$*\"
+      while [[ \${#_string} -gt 0 ]] ; do
+        typeset _array[\${#_array[@]}]=\"\${_string%\"\${_string#?}\"}\"
+        _string=\"\${_string#?}\"
+      done
+      if isnum \"$1\" ; then
+        echo \"\${_array[$1]}\"
+      else
+        aset $1 \"\${_array[@]}\"
+      fi
+    "
+#[cf]
+#[of]:  elif ${_esc\:-false} ; then
+  elif ${_esc:-false} ; then
+    eval "
+      shift;shift
+      typeset _array _char
+      typeset _lit=false
+      typeset _index=0
+      typeset _string=\"\$*\"
+
+      while [[ \${#_string} -gt 0 ]] ; do
+        _char=\"\${_string%\"\${_string#?}\"}\"
+        _string=\"\${_string#?}\"
+        if [[ \"\${_char}\" = \"\\\\\" ]] ; then
+          _lit=true
+          continue
+        elif ! \${_lit} && [[ \"\${_char}\" = \"$2\" ]] ; then
+          _array[\${_index}]=\"\${_entry}\"
+          unset _entry
+          let \"_index++\"
+          continue
+        fi
+        _lit=false
+        typeset _entry=\"\${_entry}\${_char}\"
+      done
+      _array[\${_index}]=\"\${_entry}\"
+
+      if isnum \"$1\" ; then
+        echo \"\${_array[$1]}\"
+      else
+        aset $1 \"\${_array[@]}\"
+      fi
+    "
+#[cf]
+#[of]:  else
+  else
+    eval "
+      shift;shift
+      typeset IFS=\"$2\"
+      if isnum \"$1\" ; then
+        set -- \$@
+        eval \"echo \\\"\\\$\$(($1 +1))\\\" \"
+      else
+        if [[ \"\${*%$2}\" = \"\$*\" ]] ; then
+          aset $1 \$@
+        else
+          aset $1 \$@ \"\"
+        fi
+      fi
+    "
+#[cf]
+  fi
+}
+##if first arg is a number it is a zero based position in the string
+##ugh.  yet another lovely backslash forrest.
+#[cf]
+#[of]:function ajoin {
+function ajoin {
+#[of]:  usage
+  if [[ $# -lt 2 ]] ; then
+    echo "Usage: ajoin {var} {delimiter} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  joins a list into a single string"
+    echo "  this emulates the perl function join"
+    echo "Examples:"
+    echo '  i.e.  ajoin a : "${a[@]}"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    shift;shift
+    typeset IFS=\"$2\"
+    if [[ \"$1\" = \"-\" ]] ; then
+      echo \"\$*\"
+    else
+      $1=\"\$*\"
+    fi
+  "
+}
+#[cf]
+
+#[of]:function apush {
+function apush {
+#[of]:  usage
+  if [[ $# -eq 0 ]] ; then
+    echo "Usage: apush {array} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  adds new element/s to the end of an array"
+    echo "  this emulates the perl function unshift"
+    echo "Examples:"
+    echo '  i.e.  apush b "a string"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    shift
+    aset $1 \"\${$1[@]}\" \"\$@\"
+  "
+}
+#[cf]
+#[of]:function apop {
+function apop {
+#[of]:  usage
+  if [[ $# -ne 2 ]] ; then
+    echo "Usage: apop {!|-|var} {array}"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  shift an array 1 element right and return that element in var"
+    echo "  this emulates the perl function shift"
+    echo "Examples:"
+    echo '  i.e.  apop b a'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    if [[ \${#$2[@]} -gt 0 ]] ; then
+      if [[ \"$1\" = \"!\" ]] ; then
+        :
+      elif [[ \"$1\" = \"-\" ]] ; then
+        echo \"\${$2[\$((\${#$2[@]} -1))]}\"
+      else
+        $1=\"\${$2[\$((\${#$2[@]} -1))]}\"
+      fi
+      unset $2[\$((\${#$2[@]} -1))]
+    else
+      return 1
+    fi
+  "
+  return 0
+}
+#[cf]
+
+#[of]:function aunshift {
+function aunshift {
+#[of]:  usage
+  if [[ $# -eq 0 ]] ; then
+    echo "Usage: aunshift {array} [val val val ...]"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  adds new element/s to the beginning of an array"
+    echo "  this emulates the perl function unshift"
+    echo "Examples:"
+    echo '  i.e.  aunshift b "a string"'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    shift
+    aset $1 \"\$@\" \"\${$1[@]}\"
+  "
+}
+#[cf]
+#[of]:function ashift {
+function ashift {
+#[of]:  usage
+  if [[ $# -ne 2 ]] ; then
+    echo "Usage: ashift {!|-|var} {array}"
+    echo "Error: must have at least 2 args"
+    echo "Description:"
+    echo "  shift an array 1 element left and return that element in var"
+    echo "  this emulates the perl function shift"
+    echo "Examples:"
+    echo '  i.e.  ashift b a'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  eval "
+    set -- \"\${$2[@]}\"
+    if [[ \$# -gt 0 ]] ; then
+      if [[ \"$1\" = \"!\" ]] ; then
+        :
+      elif [[ \"$1\" = \"-\" ]] ; then
+        echo \"\$1\"
+      else
+        $1=\"\$1\"
+      fi
+      [[ \$# -gt 0 ]] && shift
+      aset $2 \"\$@\"
+    else
+      return 1
+    fi
+  "
+  return 0
+}
+#[cf]
+#[cf]
+#[of]:filename
+#[of]:function filepath {
+function filepath {
+#[of]:  usage
+  if [ -z "$2" ] ; then
+    echo "Usage: filepath {var|-} file"
+    echo "Error: must have at least 2 arguments"
+    echo "Description:"
+    echo "  return the filepath only"
+    echo "Examples:"
+    echo '  filepath lc_RotateFiles_path ${lc_RotateFiles_file}'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset lc_filepath_path
+  ## if file has a path grab the path else use pwd
+  if [[ -z "${2##*/*}" ]] ; then
+    lc_filepath_path="${2%/*}"
+    #try to grab the absolute path if we can - else use what was given
+    if pushd "${lc_filepath_path}" 2>/dev/null ; then
+      lc_filepath_path="$(pwd)"
+      popd
+    fi
+  else
+    lc_filepath_path="$(pwd)"
+  fi
+
+  if [[ "$1" = "-" ]] ; then
+    echo "${lc_filepath_path}"
+  else
+    eval $1=\"\${lc_filepath_path}\"
+  fi
+  return 0
+}
+#[cf]
+#[of]:function filename {
+function filename {
+#[of]:  usage
+  if [ -z "$2" ] ; then
+    echo "Usage: filename {var|-} file"
+    echo "Error: must have at least 2 arguments"
+    echo "Description:"
+    echo "  return a filename without the path"
+    echo "Examples:"
+    echo '  filename lc_RotateFiles_name ${lc_RotateFiles_file}'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  if [[ "$1" = "-" ]] ; then
+    echo "${2##*/}"
+  else
+    eval $1=\"\${2##*/}\"
+  fi
+  return 0
+}
+#[cf]
+#[of]:function filebase {
+function filebase {
+#[of]:  usage
+  if [ -z "$2" ] ; then
+    echo "Usage: filebase {var|-} file"
+    echo "Error: must have at least 2 arguments"
+    echo "Description:"
+    echo "  returns only the base of a filename"
+    echo "Examples:"
+    echo '  filebase lc_RotateFiles_name ${lc_RotateFiles_file}'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset lc_filebase_name lc_filebase_base
+  
+  #chop off path
+  lc_filebase_name="${2##*/}"
+  
+  ##chop off ext
+  lc_filebase_base="${lc_filebase_name%.*}"
+
+  ##if base is null, because it is a .dot file with no extention
+  ##  base = name
+  ##or if base != name chop .tar.*
+  if [[ -z "${lc_filebase_base}" ]] ; then
+    lc_filebase_base="${lc_filebase_name}"
+  elif [[ "${lc_filebase_base}" != "${lc_filebase_name}" ]] ; then
+    ##chop off .tar.* from base
+    if [[ "${lc_filebase_base}" = @(*.tar) ]] ; then
+      lc_filebase_base="${lc_filebase_base%.*}"
+    fi
+  fi
+
+  if [[ "$1" = "-" ]] ; then
+    echo "${lc_filebase_base}"
+  else
+    eval $1=\"\${lc_filebase_base}\"
+  fi
+  return 0
+}
+#[cf]
+#[of]:function fileext {
+function fileext {
+#[of]:  usage
+  if [ -z "$2" ] ; then
+    echo "Usage: fileext {var|-} file"
+    echo "Error: must have at least 2 arguments"
+    echo "Description:"
+    echo "  returns only the extention of a filename"
+    echo "Examples:"
+    echo '  fileext lc_RotateFiles_ext ${lc_RotateFiles_file}'
+    echo "Returns:"
+    echo "  0 success"
+    exit 1
+  fi
+#[cf]
+  typeset lc_fileext_name lc_fileext_base lc_fileext_ext
+  
+  #chop off path
+  lc_fileext_name="${2##*/}"
+  
+  ##chop off ext
+  lc_fileext_base="${lc_fileext_name%.*}"
+
+  ##if base is null, because it is a .dot file with no extention
+  ##or if the name and base are the same
+  ##  ext is also null
+  if [[ -n "${lc_fileext_base}" ]] ; then
+    ##chop off .tar.* and base from name and return ext
+    if [[ "${lc_fileext_base}" = @(*.tar) ]] ; then
+      lc_fileext_base="${lc_fileext_base%.*}"
+    fi
+    lc_fileext_ext="${lc_fileext_name#"${lc_fileext_base}"}"
+  fi
+
+  if [[ "$1" = "-" ]] ; then
+    echo "${lc_fileext_ext#.}"
+  else
+    eval $1=\"\${lc_fileext_ext#.}\"
+  fi
+  return 0
+}
+#[cf]
+#[cf]
+#[of]:hash
+#[of]:function hashkeys {
+function hashkeys {
+#[c]-|var hash [key...key...]
+  typeset lc_hashkeys_return lc_hashkeys_hash lc_hashkeys_key
+  lc_hashkeys_return="$1"
+  lc_hashkeys_hash="$2"
+  while [[ $# -gt 2 ]] ; do
+    hashconvert2key lc_hashkeys_key "$3"
+    lc_hashkeys_hash="${lc_hashkeys_hash}_${lc_hashkeys_key}"
+    shift
+  done
+  eval "
+    if [[ \${${lc_hashkeys_hash}__count} -gt 0 ]] ; then
+      lc_hashkeys_key=\${${lc_hashkeys_hash}__first}
+      while eval [[ -n \\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[2]}\\\" ]] ; do
+        eval \"
+          typeset lc_hashkeys_hashkeys[\\\${#lc_hashkeys_hashkeys[@]}]=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[0]}\\\"
+          lc_hashkeys_key=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[2]}\\\"
+        \"
+      done
+      eval \"
+        typeset lc_hashkeys_hashkeys[\\\${#lc_hashkeys_hashkeys[@]}]=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[0]}\\\"
+      \"
+    else
+      [[ \"${lc_hashkeys_return}\" != \"-\" ]] && unset ${lc_hashkeys_return}
+      return 1
+    fi
+  "
+  if [[ "${lc_hashkeys_return}" = "-" ]] ; then
+    echo "${lc_hashkeys_hashkeys[@]}"
+  else
+    eval "aset ${lc_hashkeys_return} \"\${lc_hashkeys_hashkeys[@]}\""
+  fi
+  return 0
+}
+#[cf]
+#[of]:function hashdump {
+function hashdump {
+#[c]-r hash [key...key...]
+  typeset _hash _key _id _tmp _raw _filter=true
+  if [[ "$1" = "-r" ]] ; then
+    _raw=true
+    unset _filter
+    shift
+  fi
+  _hash=$1
+  while [[ $# -gt 1 ]] ; do
+    hashconvert2key _key "$2"
+    _hash="${_hash}_${_key}"
+    shift
+  done
+  ##dump entire hash to stdout
+  {
+    set | grep ^${_hash}__first | (read -r i && echo "${_raw:+${i}}${_filter:+${i#*_}}")
+    set | grep ^${_hash}__count | (read -r i && echo "${_raw:+${i}}${_filter:+${i#*_}}")
+    if [[ -n "$BASH_VERSION" ]] ; then
+      ##force output to a ksh friendly style
+      for _key in $(eval echo \${!${_hash}_*}) ; do
+        [[  "${_key}" = "${_hash}__first" || \
+            "${_key}" = "${_hash}__count" || \
+            "${_key}" = "${_hash}__last" ]] && continue
+        for _id in $(eval echo \${!${_key}[@]}) ; do
+          eval "_tmp=\"\${${_key}[_id]}\""
+          _tmp=$(set | grep ^_tmp=)
+          echo "${_raw:+${_key}}${_filter:+${_key#*_}}[${_id}]=${_tmp#_tmp=}"
+        done
+      done
+    else
+      ##our current shell is ksh -- a simple set dump will do
+      set | grep -e "^${_hash}_" | (
+        while read -r i ; do
+          [[  "${i}" = "${_hash}__first" || \
+              "${i}" = "${_hash}__count" || \
+              "${i}" = "${_hash}__last" ]] && continue
+          echo "${_raw:+${i}}${_filter:+${i#*_}}"
+        done
+      )
+    fi
+    set | grep ^${_hash}__last | (read -r i && echo "${_raw:+${i}}${_filter:+${i#*_}}")
+  }
+  return 0
+}
+#[cf]
+#[of]:function hashsave {
+function hashsave {
+#[c]-r hash [key...key...] filename
+  typeset _hash _file
+  aset _hash "$@"
+  apop _file _hash
+  ##do we have permission to write the hashtable file?
+  if [[ -d "${_file}" ]] ; then
+    echo "hashtable file \"${_file}\" already exist as a directory" >&2
+    return 1
+  fi
+  ##this checks write permissons and clears the hashtable file
+  if ! : > "${_file}" >/dev/null 2>&1 ; then
+    echo "the hashtable file \"${_file}\" is not writeable" >&2
+    return 1
+  fi
+  ##dump entire hash to file
+  hashdump "${_hash[@]}"  > "${_file}"
+  return 0
+}
+#[cf]
+#[of]:function hashload {
+function hashload {
+#[c]hash [key...key...] filename
+  typeset _hash _key _file
+  _hash=$1
+  while [[ $# -gt 2 ]] ; do
+    hashconvert2key _key "$2"
+    _hash="${_hash}_${_key}"
+    shift
+  done
+  _file="$2"
+
+  ##do we have permission to read the hashtable file and does it have content?
+  if [[ ! -e "${_file}" ]] ; then
+    echo "the hashtable file \"${_file}\" does not exist" >&2
+    return 1
+  fi
+  if [[ ! -r "${_file}" ]] ; then
+    echo "the hashtable file \"${_file}\" is not readable" >&2
+    return 1
+  fi
+  if [[ ! -s "${_file}" ]] ; then
+    echo "the hashtable file \"${_file}\" has no content" >&2
+    return 1
+  fi
+  if ! grep -q -e ^_last= -e __last= "${_file}" ; then
+    echo "the hashtable file \"${_file}\" is incomplete or damaged" >&2
+    return 1
+  fi
+  ##is the hashtable file complete, does the hashtable file have a last= element
+  while read -r _key ; do
+    eval ${_hash}_${_key}
+  done < "${_file}"
+  ##load entire hash from file as named hash
+  return 0
+}
+#[cf]
+#[of]:function hashdel {
+if [[ -n "$BASH_VERSION" ]] ; then
+  function hashdel {
+#[c]  hash
+    typeset lc_hashdel_hash
+    lc_hashdel_hash="$1"
+    while [[ $# -gt 1 ]] ; do
+      hashconvert2key lc_hashdel_key "$2"
+      lc_hashdel_hash="${lc_hashdel_hash}_${lc_hashdel_key}"
+      shift
+    done
+    eval "
+      unset \${!${lc_hashdel_hash}_*}
+    "
+    return 0
+  }
+else
+  function hashdel {
+#[c]  hash
+    typeset lc_hashdel_hash
+    lc_hashdel_hash="$1"
+    while [[ $# -gt 1 ]] ; do
+      hashconvert2key lc_hashdel_key "$2"
+      lc_hashdel_hash="${lc_hashdel_hash}_${lc_hashdel_key}"
+      shift
+    done
+    set | grep \
+      -e "^${lc_hashdel_hash}_" | \
+      while read lc_hashdel_hash ; do
+        eval "
+          unset \${${lc_hashdel_hash%%=*}}
+        "
+      done
+    return 0
+  }
+fi
+#[cf]
+#[of]:function hashsetkey {
+function hashsetkey {
+#[c]hash key [key...key...] [+=|-=|=] value
+#[c]
+#[c]hash key key += value
+#[c]key key += value
+#[c]key += value
+#[c]
+#[c]hash key key key value
+#[c]key key key value
+#[c]key key value
+#[c]
+#[c]hash key value
+#[c]
+#[c]hash key += value
+#[c]key += value
+#[c]
+#[c]
+  typeset lc_hashsetkey_hash lc_hashsetkey_keyname lc_hashsetkey_key lc_hashsetkey_hashpart lc_hashsetkey_math
+  typeset _forcelower
+  if [[ "$1" = "-l" ]] ; then
+    _forcelower="-l"
+    shift
+  fi
+
+  lc_hashsetkey_hash="$1"
+  if [[ $# -eq 3 ]] ; then
+    lc_hashsetkey_keyname="$2"
+  elif [[ $# -gt 3 ]] ; then
+    while [[ $# -gt 3 ]] ; do
+      shift
+      hashconvert2key lc_hashsetkey_hashpart "$1"
+      lc_hashsetkey_hash="${lc_hashsetkey_hash}_${lc_hashsetkey_hashpart}"
+    done
+    if [[ "$2" = @(+=|-=|=) ]] ; then
+      lc_hashsetkey_keyname="$1"
+      lc_hashsetkey_math="$2"
+    else
+      lc_hashsetkey_keyname="$2"
+    fi
+  else
+    return 1
+  fi
+  hashconvert2key ${_forcelower} lc_hashsetkey_key "${lc_hashsetkey_keyname}"
+
+  eval "
+    [[ -z \"\${${lc_hashsetkey_hash}__first}\" ]] && ${lc_hashsetkey_hash}__first=${lc_hashsetkey_key}
+    if [[ -z \"\${${lc_hashsetkey_hash}__meta_${lc_hashsetkey_key}[0]}\" ]] ; then
+      ${lc_hashsetkey_hash}__meta_${lc_hashsetkey_key}[0]=\"\${lc_hashsetkey_keyname}\"
+      if [[ -n \"\${${lc_hashsetkey_hash}__last}\" ]] ; then
+        eval \"\${lc_hashsetkey_hash}__meta_\${${lc_hashsetkey_hash}__last}[2]=${lc_hashsetkey_key}\"
+        ${lc_hashsetkey_hash}__meta_${lc_hashsetkey_key}[1]=\${${lc_hashsetkey_hash}__last}
+      fi
+      ${lc_hashsetkey_hash}__last=${lc_hashsetkey_key}
+      let \"${lc_hashsetkey_hash}__count++\"
+    fi
+  "
+  if [[ -n "${lc_hashsetkey_math}" ]] ; then
+    let "${lc_hashsetkey_hash}__data_${lc_hashsetkey_key} ${lc_hashsetkey_math} $3"
+  else
+    eval "${lc_hashsetkey_hash}__data_${lc_hashsetkey_key}=\"\$3\""
+  fi
+  return 0
+}
+#[cf]
+#[of]:function hashgetkey {
+function hashgetkey {
+#[c]!|-|var hash key [key...key...]
+  typeset lc_hashgetkey_return lc_hashgetkey_hash lc_hashgetkey_hashpart lc_hashgetkey_key
+  typeset _forcelower
+  if [[ "$1" = "-l" ]] ; then
+    _forcelower="-l"
+    shift
+  fi
+
+  lc_hashgetkey_return="$1"
+  lc_hashgetkey_hash="$2"
+  while [[ $# -gt 3 ]] ; do
+    hashconvert2key lc_hashgetkey_hashpart "$3"
+    lc_hashgetkey_hash="${lc_hashgetkey_hash}_${lc_hashgetkey_hashpart}"
+    shift
+  done
+  hashconvert2key ${_forcelower} lc_hashgetkey_key "$3"
+
+  if [[ "${lc_hashgetkey_return}" = "!" ]] ; then
+    :
+  elif [[ "${lc_hashgetkey_return}" = "-" ]] ; then
+    eval "echo \"\${${lc_hashgetkey_hash}__data_${lc_hashgetkey_key}}\""
+  else
+    eval "${lc_hashgetkey_return}=\"\${${lc_hashgetkey_hash}__data_${lc_hashgetkey_key}}\""
+  fi
+  isset "${lc_hashgetkey_hash}__meta_${lc_hashgetkey_key}"
+}
+#[cf]
+#[of]:function hashdelkey {
+function hashdelkey {
+#[c]hash key [key...key...]
+  typeset lc_hashdelkey_hash lc_hashdelkey_hashpart lc_hashdelkey_key
+  typeset _forcelower
+  if [[ "$1" = "-l" ]] ; then
+    _forcelower="-l"
+    shift
+  fi
+
+  lc_hashdelkey_hash="$1"
+  while [[ $# -gt 2 ]] ; do
+    hashconvert2key lc_hashdelkey_hashpart "$2"
+    lc_hashdelkey_hash="${lc_hashdelkey_hash}_${lc_hashdelkey_hashpart}"
+    shift
+  done
+  hashconvert2key ${_forcelower} lc_hashdelkey_key "$2"
+
+  eval "
+    if [[ -n \"\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[0]}\" ]] ; then
+      if [[ \"\${${lc_hashdelkey_hash}__first}\" = \"${lc_hashdelkey_key}\" ]] ; then
+        ${lc_hashdelkey_hash}__first=\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[2]}
+        eval \"unset \${lc_hashdelkey_hash}__meta_\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[2]}[1]\"
+      elif [[ \"\${${lc_hashdelkey_hash}__last}\" = \"${lc_hashdelkey_key}\" ]] ; then
+        ${lc_hashdelkey_hash}__last=\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[1]}
+        eval \"unset \${lc_hashdelkey_hash}__meta_\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[1]}[2]\"
+      else
+        eval \"
+          \${lc_hashdelkey_hash}__meta_\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[1]}[2]=\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[2]}
+          \${lc_hashdelkey_hash}__meta_\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[2]}[1]=\${${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}[1]}
+        \"
+      fi
+      unset ${lc_hashdelkey_hash}__meta_${lc_hashdelkey_key}
+      unset ${lc_hashdelkey_hash}__data_${lc_hashdelkey_key}
+      let \"${lc_hashdelkey_hash}__count--\"
+      if [[ \${${lc_hashdelkey_hash}__count} -eq 0 ]] ; then
+        unset ${lc_hashdelkey_hash}__first
+        unset ${lc_hashdelkey_hash}__last
+      fi
+    else
+      return 1
+    fi
+  "
+  return 0
+}
+#[cf]
+#[of]:function hashgetsize {
+function hashgetsize {
+#[c]!|-|var hash [key...key...]
+  unset lc_hashgetsize_hashpart
+  typeset lc_hashgetsize_var lc_hashgetsize_hash lc_hashgetsize_count lc_hashgetsize_return
+  lc_hashgetsize_var="$1"
+  lc_hashgetsize_hash="$2"
+  while [[ $# -gt 2 ]] ; do
+    typeset lc_hashgetsize_hashpart
+    hashconvert2key lc_hashgetsize_hashpart "$3"
+    lc_hashgetsize_hash="${lc_hashgetsize_hash}_${lc_hashgetsize_hashpart}"
+    shift
+  done
+  if [[ "${lc_hashgetsize_var}" = "!" ]] ; then
+    :
+  elif [[ "${lc_hashgetsize_var}" = "-" ]] ; then
+    eval "echo \"\${${lc_hashgetsize_hash}__count-0}\""
+  else
+    eval "${lc_hashgetsize_var}=\"\${${lc_hashgetsize_hash}__count-0}\""
+  fi
+  isset "${lc_hashgetsize_hash}__count"
+}
+#[cf]
+#[of]:function hashgetfirst {
+function hashgetfirst {
+#[c]!|-|var [-k key] hash [key...key...]
+  unset lc_hashgetfirst_key
+  typeset lc_hashgetfirst_return lc_hashgetfirst_hash lc_hashgetfirst_hashpart
+  lc_hashgetfirst_return="$1"
+
+  if [[ "$2" = "-k" ]] ; then
+    shift
+    typeset lc_hashgetfirst_key
+    hashconvert2key lc_hashgetfirst_key "$2"
+    shift
+  fi
+
+  lc_hashgetfirst_hash="$2"
+  while [[ $# -gt 2 ]] ; do
+    hashconvert2key lc_hashgetfirst_hashpart "$3"
+    lc_hashgetfirst_hash="${lc_hashgetfirst_hash}_${lc_hashgetfirst_hashpart}"
+    shift
+  done
+
+  if ! isset lc_hashgetfirst_key ; then
+    typeset lc_hashgetfirst_key
+    eval "lc_hashgetfirst_key=\${${lc_hashgetfirst_hash}__first}"
+  fi
+  isset "${lc_hashgetfirst_hash}__meta_${lc_hashgetfirst_key}" || return 1
+  
+  eval "
+    if isset ${lc_hashgetfirst_hash}__meta_${lc_hashgetfirst_key}[2] ; then
+      ${lc_hashgetfirst_hash}__next=\${${lc_hashgetfirst_hash}__meta_${lc_hashgetfirst_key}[2]}
+    else
+      unset ${lc_hashgetfirst_hash}__next
+    fi
+
+    if [[ \"\${lc_hashgetfirst_return}\" = \"!\" ]] ; then
+      :
+    elif [[ \"\${lc_hashgetfirst_return}\" = \"-\" ]] ; then
+      echo \"\${${lc_hashgetfirst_hash}__data_${lc_hashgetfirst_key}}\"
+    else
+      ${lc_hashgetfirst_return}=\"\${${lc_hashgetfirst_hash}__data_${lc_hashgetfirst_key}}\"
+    fi
+  "
+  return 0
+}
+#[cf]
+#[of]:function hashgetnext {
+function hashgetnext {
+#[c]!|-|var hash [key...key...]
+  typeset lc_hashgetnext_return lc_hashgetnext_hash lc_hashgetnext_hashpart lc_hashgetnext_key
+  lc_hashgetnext_return="$1"
+
+  lc_hashgetnext_hash="$2"
+  while [[ $# -gt 2 ]] ; do
+    hashconvert2key lc_hashgetnext_hashpart "$3"
+    lc_hashgetnext_hash="${lc_hashgetnext_hash}_${lc_hashgetnext_hashpart}"
+    shift
+  done
+
+  isset ${lc_hashgetnext_hash}__next || return 1
+  eval "lc_hashgetnext_key=\${${lc_hashgetnext_hash}__next}"
+
+  eval "
+    if isset ${lc_hashgetnext_hash}__meta_${lc_hashgetnext_key}[2] ; then
+      ${lc_hashgetnext_hash}__next=\${${lc_hashgetnext_hash}__meta_${lc_hashgetnext_key}[2]}
+    else
+      unset ${lc_hashgetnext_hash}__next
+    fi
+
+    if [[ \"\${lc_hashgetnext_return}\" = \"!\" ]] ; then
+      :
+    elif [[ \"\${lc_hashgetnext_return}\" = \"-\" ]] ; then
+      echo \"\${${lc_hashgetnext_hash}__data_${lc_hashgetnext_key}}\"
+    else
+      ${lc_hashgetnext_return}=\"\${${lc_hashgetnext_hash}__data_${lc_hashgetnext_key}}\"
+    fi
+  "
+  unset lc_hashgetnext_hashpart
+  return 0
+}
+#[cf]
+#[of]:function hashconvert2key {
+function hashconvert2key {
+#[c][var] value
+  typeset lc_hashconvert2key_string lc_hashconvert2key_char lc_hashconvert2key_hexpart lc_hashconvert2key_key
+  typeset _forcelower=false
+  if [[ "$1" = "-l" ]] ; then
+    _forcelower=true
+    shift
+  fi
+
+  lc_hashconvert2key_string="${2:-$1}"
+  if ! ${_forcelower} && [[ "${lc_hashconvert2key_string}" = +([[:alnum:]]) ]] ; then
+    lc_hashconvert2key_key="${lc_hashconvert2key_string}"
+  else
+    while [[ ${#lc_hashconvert2key_string} -gt 0 ]] ; do
+      lc_hashconvert2key_char="${lc_hashconvert2key_string%"${lc_hashconvert2key_string#?}"}"
+      if [[ "${lc_hashconvert2key_char}" = [[:alnum:]] ]] ; then
+        if ${_forcelower} && [[ "${lc_hashconvert2key_char}" = [[:alpha:]] ]] ; then
+          printf -v lc_hashconvert2key_char %o $((36#${lc_hashconvert2key_char}+87))
+          lc_hashconvert2key_key="${lc_hashconvert2key_key}$(echo -ne "\\${lc_hashconvert2key_char}")"
+        else
+          lc_hashconvert2key_key="${lc_hashconvert2key_key}${lc_hashconvert2key_char}"
+        fi
+      else
+        printf -v lc_hashconvert2key_hexpart %02X "'${lc_hashconvert2key_char}"
+        lc_hashconvert2key_key="${lc_hashconvert2key_key}${lc_hashconvert2key_hexpart}"
+      fi
+      lc_hashconvert2key_string="${lc_hashconvert2key_string#?}"
+    done
+  fi
+  if [[ $# -eq 1 ]] ; then
+    echo "${lc_hashconvert2key_key}"
+  else
+    eval "$1=\"\${lc_hashconvert2key_key}\""
+  fi
+  return 0
+}
+#[cf]
+#[cf]
+#[cf]
+#[of]:function getmime {
+function getmime {
+  typeset _count _mimetype _ext
+  fileext _ext "$1"
+#[of]:  if mime ext defined
+  if \
+    [[ -n "${_ext}" ]] && \
+    hashgetkey -l _mimetype mimeext "${_ext}" && \
+    hashgetkey lc_main_icon mimetype "${_mimetype}"
+  then
+    lc_main_icon="${lc_main_icon:-bomb}"
+#[of]:    if action defined
+    if hashgetsize _count mimetype "${_mimetype}" xaction ; then
+      if [[ ${_count} -eq 1 ]] ; then
+        hashgetfirst lc_main_runprog mimetype "${_mimetype}" xaction
+        lc_main_runprog="${lc_main_runprog//\"/\\\"}"
+        eval "lc_main_runprog=\"${lc_main_runprog}\""
+      else
+        lc_main_runaction="menuprog"
+        lc_main_runprog="${gl_progname} displayactionmenu \"${_mimetype}\" \"$1\""
+      fi
+#[cf]
+#[of]:    else action = noop
+    else
+      lc_main_runaction="menuprog"
+      lc_main_runprog="${gl_progname} addmimeaction \"${_mimetype}\" menuprompt"
+#[c]      lc_main_runprog="false"
+#[cf]
+    fi
+#[cf]
+#[of]:  else display ext default
+  else
+    lc_main_icon="app"
+    lc_main_runaction="menuprog"
+    lc_main_runprog="${gl_progname} appmenu \"$1\""
+#[cf]
+  fi
+}
+#[cf]
+#[of]:function refreshmenu {
+function refreshmenu {
+  [[ -e "${gl_menufile}" ]] && touch "${gl_menufile}"
+}
+#[cf]
+#[of]:function savemimecache {
+function savemimecache {
+  set | grep -e ^mimetype_ -e ^mimeext_ > "${gl_mimetypescache}"
+  copybasemenu
+  refreshmenu
+}
+#[cf]
+#[of]:function writemenuheader {
+function writemenuheader {
+  echo "#${gl_version}"
+  echo "#options"
+  echo "prog \"add group\" app ${gl_progname} addgroup \"${lc_main_parentgroup:+${lc_main_parentgroup}-}${lc_main_group}\" prompt"
+  echo "prog \"edit group\" app bash -l -c 'exec nedit \"\${ICEWM_PRIVCFG:-\${HOME}/.icewm}/${lc_main_newconfigfile##*/}\"'"
+  echo "menuprog \"put group \\\"${lc_main_group}\\\" into\" folder ${gl_progname} putgroupingroup \"${lc_main_parentgroup}\" \"${lc_main_group}\""
+  echo "menuprog \"move group \\\"${lc_main_group}\\\" above\" folder ${gl_progname} movname \"${lc_main_parentgroup}\" \"${lc_main_group}\""
+  echo "menuprog \"remove group \\\"${lc_main_group}\\\"\" folder ${gl_progname} remgroup \"${lc_main_parentgroup}\" \"${lc_main_group}\""
+  echo "separator"
+  echo "#links"
+}
+#[cf]
+#[of]:function copybasemenu {
+function copybasemenu {
+  if [[ ! -s "${gl_menufile}" ]] ; then
+    cp -f /usr/share/icewm/${gl_menufile##*/} "${gl_menufile}"
+  fi
+}
+#[cf]
+#[cf]
+#[of]:main
+#[of]:setup vars
+gl_version=dlist-1.0.0
+gl_progname="${0##*/}"
+lc_main_task="$1"
+lc_main_name="${2%/}"
+
+gl_configrpath=".icewm"
+gl_configfqpath="${ICEWM_PRIVCFG:-${HOME}/.icewm}"
+
+gl_prefix="icedlist"
+gl_configfile="${gl_configfqpath}/${gl_prefix}.settings"
+gl_menufile="${gl_configfqpath}/${gl_prefix}.menu"
+gl_mimetypescache="${gl_configfqpath}/${gl_prefix}.mimetypes"
+
+#[of]:resolve default editor
+if which nedit > /dev/null 2>&1 ; then
+  lc_main_defaulteditor=nedit
+elif which vim > /dev/null 2>&1 ; then
+  lc_main_defaulteditor=vim
+else
+  lc_main_defaulteditor=false
+fi
+#[cf]
+#[of]:resolve default terminal
+if which urxvt > /dev/null 2>&1 ; then
+  lc_main_terminal=urxvt
+elif which rxvt > /dev/null 2>&1 ; then
+  lc_main_terminal=rxvt
+elif which xterm > /dev/null 2>&1 ; then
+  lc_main_terminal=xterm
+else
+  lc_main_terminal=false
+fi
+#[cf]
+lc_main_maxmenuheight=28
+#[of]:load settings
+if [[ -s "${gl_configfile}" ]] ; then
+  . "${gl_configfile}"
+fi
+#[cf]
+#[of]:load mimetypes cache
+if [[ -s "${gl_mimetypescache}" ]] ; then
+  . "${gl_mimetypescache}"
+elif [[ -s "/usr/share/icewm/${gl_mimetypescache##*/}" ]] ; then
+  . "/usr/share/icewm/${gl_mimetypescache##*/}"
+fi
+#[cf]
+#[cf]
+#[of]:process task
+case ${lc_main_task} in
+#[of]:  edit list entry
+#[of]:  addname)
+  addname)
+    lc_main_currentprefix="$3"
+    copybasemenu
+    echo "menuprog \"${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}*}\" folder ${gl_progname} base \"${lc_main_name}\" \"${lc_main_currentprefix}\"" >> "${gl_menufile}"
+    ;;
+#[cf]
+#[of]:  remname)
+  remname)
+    lc_main_group="$2"
+    lc_main_name="$3"
+    lc_main_currentprefix="$4"
+    if [[ -s "${gl_menufile}${lc_main_group:+-${lc_main_group}}" ]] ; then
+      sed -e "\%^menuprog \"${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}\*}\"%d" -i "${gl_menufile}${lc_main_group:+-${lc_main_group}}"
+    fi
+    ;;
+#[cf]
+#[of]:  movname)
+  movname)
+    lc_main_group="$2"
+    lc_main_name="$3"
+    lc_main_currentprefix="$4"
+    lc_main_lowername="$5"
+    if [[ -z "${lc_main_lowername}" ]] ; then
+      grep -e separator -e "^menu.... " "${gl_menufile}${lc_main_group:+-${lc_main_group}}" | \
+        ( 
+        while read i ; do
+          [[ "${i}" = "separator" ]] && break
+        done
+        while read -a i ; do
+          i=( "${i[@]//\"/}" )
+          if [[ "${i[1]}" != "${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}*}" ]] ; then
+            echo "prog ${i[1]} app ${gl_progname} movname \"${lc_main_group}\" \"${lc_main_name}\" \"${lc_main_currentprefix}\" \"${i[1]}\""
+          fi
+        done )
+    else
+      lc_main_lowername="${lc_main_lowername//\*/\\*}"
+      lc_main_line="$(set -o pipefail;grep "^menu.... \"${lc_main_name:-/}${lc_main_currentprefix:+/${lc_main_currentprefix}\*}\"" ${gl_menufile}${lc_main_group:+-${lc_main_group}} | tail -1)"
+      lc_main_line="${lc_main_line//\*/\\*}"
+      sed -e "\%^menu.... \"${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}\*}\"%d" -i "${gl_menufile}${lc_main_group:+-${lc_main_group}}"
+      sed -e '/^menu.... "'"${lc_main_lowername//\//\\/}"'"/{h;s/.*/'"${lc_main_line//\//\\/}"'/;p;g}' -i "${gl_menufile}${lc_main_group:+-${lc_main_group}}"
+    fi
+    ;;
+#[cf]
+#[of]:  putnameingroup)
+  putnameingroup)
+    lc_main_currentprefix="$3"
+    lc_main_group="$4"
+    if [[ -z "${lc_main_group}" ]] ; then
+      echo "prog \"main\" app ${gl_progname} ${lc_main_task} \"${lc_main_name}\" \"${lc_main_currentprefix}\" \"main\""
+      for i in ${gl_menufile}-* ; do
+        [[ "${i##*-}" = '*' || "${i}" = "" ]] && continue
+        echo "prog \"${i#*-}\" app ${gl_progname} ${lc_main_task} \"${lc_main_name}\" \"${lc_main_currentprefix}\" \"${i#*-}\""
+      done
+    else
+      [[ "${lc_main_group}" = "main" ]] && unset lc_main_group
+      lc_main_nameowner="$(grep -l "^menuprog \"${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}\*}\"" ${gl_menufile}* | tail -1)"
+      if [[ -s "${lc_main_nameowner}" ]] ; then
+        sed -e "\%^menuprog \"${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}\*}\"%d" -i "${lc_main_nameowner}"
+        echo "menuprog \"${lc_main_name}${lc_main_currentprefix:+/${lc_main_currentprefix}*}\" folder ${gl_progname} base \"${lc_main_name}\" \"${lc_main_currentprefix}\"" >> "${gl_menufile}${lc_main_group:+-${lc_main_group}}"
+      fi
+    fi
+    ;;
+#[cf]
+#[cf]
+#[of]:  edit groups
+#[of]:  addgroup)
+  addgroup)
+    lc_main_parentgroup="$2"
+    lc_main_option="$3"
+    case "${lc_main_option}" in
+      prompt)
+        if [[ -n "${DISPLAY}" ]] ; then
+          ${lc_main_terminal} -e bash -login -c "
+            ${gl_progname} ${lc_main_task} \"${lc_main_parentgroup}\" dialog
+          "
+        fi
+        ;;
+      dialog)
+#[of]:        get new group name
+        while true ; do
+          read -p "enter new group name: " -e lc_main_group
+          if [[ "${lc_main_group}" = "main" ]] ; then
+            echo "main is reserved for the root menu.  choose anything but."
+            continue
+          fi
+          if [[ "${lc_main_group}" =~ [^[:alnum:]] ]] ; then
+            echo "only alphanumeric characters are allowed.  try again."
+            continue
+          fi
+          break
+        done
+#[cf]
+#[of]:        if no entry cancel
+        if [[ -z "${lc_main_group}" ]] ; then
+          echo "no new entry given.  canceling group add."
+          sleep 4
+          exit
+        fi
+#[cf]
+#[of]:        write new group file
+        copybasemenu
+        lc_main_parentconfigfile="${gl_menufile}${lc_main_parentgroup:+-${lc_main_parentgroup}}"
+        lc_main_newconfigfile="${lc_main_parentconfigfile}-${lc_main_group}"
+
+        if [[ -s "${lc_main_newconfigfile}" ]] ; then
+          echo -n "the group \"${lc_main_group}\" already exist in \"${lc_main_parentgroup}\", overwrite [y/N]: "
+          read -n 1 lc_main_overwrite
+          [[ "${lc_main_overwrite}" != "y" ]] && exit
+          ${gl_progname} remgroup "${lc_main_parentgroup}" "${lc_main_group}" yes
+        fi
+        echo "menufile \"${lc_main_group}\" file \"${lc_main_newconfigfile}\"" >> "${lc_main_parentconfigfile}"
+        writemenuheader > "${lc_main_newconfigfile}"
+#[cf]
+        ;;
+    esac
+    ;;
+#[cf]
+#[of]:  remgroup)
+  remgroup)
+    lc_main_parentgroup="$2"
+    lc_main_group="$3"
+    lc_main_option="$4"
+    if [[ "${lc_main_option}" != "yes" ]] ; then
+      echo "prog \"perform remove\" app ${gl_progname} ${lc_main_task} \"${lc_main_parentgroup}\" \"${lc_main_group}\" yes"
+    else
+      lc_main_parentconfigfile="${gl_menufile}${lc_main_parentgroup:+-${lc_main_parentgroup}}"
+      gl_menufile="${lc_main_parentconfigfile}-${lc_main_group}"
+      [[ -s "${lc_main_configpath}/${lc_main_parentconfigfile}" ]] && sed -e "\%^menufile \"${lc_main_group}\"%d" -i "${lc_main_configpath}/${lc_main_parentconfigfile}"
+      ##remove current group configfile and all its children
+      rm -f "${gl_menufile}" "${gl_menufile}-"*
+    fi
+    ;;
+#[cf]
+#[of]:  putgroupingroup)
+  putgroupingroup)
+    lc_main_srcparentgroup="$2"
+    lc_main_srcgroup="$3"
+    lc_main_dstparentgroup="$4"
+    if [[ -z "${lc_main_dstparentgroup}" ]] ; then
+      if [[ -n "${lc_main_srcparentgroup}" ]] ; then
+        echo "prog \"main\" app ${gl_progname} ${lc_main_task} \"${lc_main_srcparentgroup}\" \"${lc_main_srcgroup}\" \"main\""
+      fi
+      for i in ${gl_menufile}-* ; do
+        i="${i##*/}";i="${i#*-}"
+        [[ "${i}" =~ '-\*$' ]] && continue
+        [[ -n "${lc_main_srcparentgroup}" && "${i}" = "${lc_main_srcparentgroup}" ]] && continue
+        [[ "${i}" = @(settings|${lc_main_srcparentgroup:+${lc_main_srcparentgroup}-}${lc_main_srcgroup}*(-*)) ]] && continue
+        echo "prog \"${i}\" app ${gl_progname} ${lc_main_task} \"${lc_main_srcparentgroup}\" \"${lc_main_srcgroup}\" \"${i}\""
+      done
+    else
+      [[ "${lc_main_dstparentgroup}" = "main" ]] && unset lc_main_dstparentgroup
+      unset _srcparentgroup
+      asplit _srcparentgroup - ${lc_main_srcparentgroup}
+      ##list group and its children
+      for i in "${gl_menufile}${lc_main_srcparentgroup:+-${lc_main_srcparentgroup}}-${lc_main_srcgroup}"{,-*} ; do
+        [[ "${i}" =~ '-\*$' ]] && continue
+        lc_main_oldconfigfile="${i}"
+        ##split into groups
+        unset _srcgroup
+        asplit _srcgroup - "${lc_main_oldconfigfile##*/}"
+        ##strip off configfile header
+        ashift ! _srcgroup
+        ##pull current group off of array
+        apop _currentgroup _srcgroup
+        ##copy srcgroup to dstgroup
+        aset _dstgroup "${_srcgroup[@]}"
+        ##remove srcparentgroup from dstgroup
+        for _group in ${_srcparentgroup[@]} ; do
+          ashift ! _dstgroup
+        done
+        ##add dstparentgroup to dstgroup
+        unset _dstparentgroup
+        asplit _dstparentgroup - ${lc_main_dstparentgroup}
+        while apop _group _dstparentgroup ; do
+          aunshift _dstgroup "${_group}"
+        done
+#[c]        asplit _dstparentgroup - ${lc_main_dstparentgroup}
+        ajoin lc_main_oldparentconfigfile - "${gl_menufile}" "${_srcgroup[@]}"
+        ajoin lc_main_srcgroup - "${_srcgroup[@]}"
+        ajoin lc_main_newparentconfigfile - "${gl_menufile}" "${_dstgroup[@]}"
+        ajoin lc_main_newconfigfile - "${gl_menufile}" "${_dstgroup[@]}" "${_currentgroup}"
+
+        ajoin lc_main_parentgroup - "${_dstgroup[@]}"
+        lc_main_group="${_currentgroup}"
+#[of]:        remove from current old and if needed new parentgroup
+        if [[ -s "${lc_main_oldparentconfigfile}" ]] ; then
+          #echo "remove ${lc_main_group} from ${lc_main_oldparentconfigfile}"
+          sed -e "\%^menufile \"${lc_main_group}\"%d" -i "${lc_main_oldparentconfigfile}"
+        fi
+        if [[ -s "${lc_main_newparentconfigfile}" ]] ; then
+          #echo "remove ${lc_main_group} from ${lc_main_newparentconfigfile}"
+          sed -e "\%^menufile \"${lc_main_group}\"%d" -i "${lc_main_newparentconfigfile}"
+        fi
+#[cf]
+#[of]:        add to new parentgroup
+        #echo "add ${lc_main_group} to ${lc_main_newparentconfigfile}"
+        echo "menufile \"${lc_main_group}\" file \"${lc_main_newconfigfile##*/}\"" >> "${lc_main_newparentconfigfile}"
+#[cf]
+#[of]:        rewrite group menu header
+        { writemenuheader
+          ( while read -r _line ; do
+              [[ "${_line}" = "#links" ]] && break
+            done
+            while read -r _line ; do
+              echo "${_line}"
+            done
+          ) < "${lc_main_oldconfigfile}"
+        } > "${lc_main_newconfigfile}"
+#[cf]
+#[of]:        remove old configfile
+        rm -f "${lc_main_oldconfigfile}"
+#[cf]
+      done
+    fi
+    ;;
+#[cf]
+#[cf]
+#[of]:  edit mimes
+#[of]:  displaymimeexts)
+  displaymimeexts)
+    if [[ -z "${lc_main_name}" ]] ; then
+      echo "prog \"add mime ext\" app ${gl_progname} addmimeext prompt"
+#[of]:      display separator
+    echo " separator"
+#[cf]
+      hashkeys _keys mimeext
+      #asort _keys "${_keys[@]}"
+      for _key in "${_keys[@]}" ; do
+        hashgetkey _mimetype mimeext "${_key}"
+        hashgetkey _icon mimetype "${_mimetype}"
+        echo "menuprog \"${_key}\" \"${_icon}\" ${gl_progname} ${lc_main_task} \"${_key}\""
+      done | sort -f
+    else
+      echo "menuprog \"del mime ext\" app ${gl_progname} delmimeext \"${lc_main_name}\""
+      echo "menuprog \"associate with type\" folder ${gl_progname} pairextwithtype \"${lc_main_name}\""
+#[of]:      display separator
+    echo " separator"
+#[cf]
+      hashgetkey _mimetype mimeext "${lc_main_name}"
+      if [[ -n "${_mimetype}" ]] ; then
+        hashgetkey _icon mimetype ${_mimetype} && \
+          echo "menuprog \"${_mimetype}\" \"${_icon}\" ${gl_progname} displaymimetypes \"${_mimetype}\""
+      fi
+    fi
+    ;;
+#[cf]
+#[of]:  addmimeext)
+  addmimeext)
+    lc_main_option="$2"
+    case "${lc_main_option}" in
+      prompt)
+        if [[ -n "${DISPLAY}" ]] ; then
+          ${lc_main_terminal} -e bash -login -c "
+            ${gl_progname} ${lc_main_task} dialog
+          "
+        fi
+        ;;
+      dialog)
+        while true ; do
+          read -p "enter new mime ext: " -e lc_main_name
+#[of]:          if empty entry cancel add
+          if [[ -z "${lc_main_name}" ]] ; then
+            echo "no new entry given.  canceling mimeext add."
+            sleep 4
+            exit
+          fi
+#[cf]
+#[of]:          if ext already exist
+          if hashgetkey -l ! mimeext "${lc_main_name}" ; then
+            echo "mimeext already exist.  choose a different name."
+            continue
+          fi
+          break
+#[cf]
+        done
+        tolower lc_main_name
+        hashsetkey mimeext "${lc_main_name}" ""
+        savemimecache
+        ;;
+    esac
+    ;;
+#[cf]
+#[of]:  delmimeext)
+  delmimeext)
+    lc_main_option="$3"
+    if [[ "${lc_main_option}" != "yes" ]] ; then
+      echo "prog \"perform delete\" app ${gl_progname} ${lc_main_task} \"${lc_main_name}\" yes"
+    else
+      hashdelkey mimeext "${lc_main_name}"
+      savemimecache
+    fi
+    ;;
+#[cf]
+#[of]:  pairextwithtype)
+  pairextwithtype)
+    lc_main_mime="$3"
+    if [[ -z "${lc_main_mime}" ]] ; then
+      echo "prog \"add mime\" app ${gl_progname} addmimetype prompt"
+#[of]:      display separator
+    echo " separator"
+#[cf]
+      hashkeys _keys mimetype
+      #asort _keys "${_keys[@]}"
+      for _key in "${_keys[@]}" ; do
+        hashgetkey _icon mimetype "${_key}"
+        echo "prog \"${_key}\" \"${_icon}\" ${gl_progname} ${lc_main_task} \"${lc_main_name}\" \"${_key}\""
+      done | sort -f
+    else
+      tolower lc_main_name
+      hashsetkey mimeext "${lc_main_name}" "${lc_main_mime}"
+      savemimecache
+    fi
+    ;;
+#[cf]
+#[of]:  setmimeicon)
+  setmimeicon)
+#[c]    set -xv
+#[of]:    find and include theme file
+    for _configpath in ${ICEWM_PRIVCFG:-${HOME}/.icewm} /etc/X11/icewm /usr/share/icewm /usr/local/share/icewm ; do
+      if [[ -s "${_configpath}/theme" ]] ; then
+        . "${_configpath}/theme"
+        break
+      fi
+    done
+#[cf]
+#[c]    list icons
+#[c]      default icons
+#[c]      user default icons
+#[c]      theme icons
+#[c]      user theme icons
+    
+    lc_main_icon="$3"
+    if [[ -n "${lc_main_icon}" ]] ; then
+      hashsetkey mimetype "${lc_main_name}" "${lc_main_icon}"
+      savemimecache
+    else
+      hashdel iconhash
+      unset _last
+      for _configpath in /usr/local/share/icewm /usr/share/icewm /etc/X11/icewm ${ICEWM_PRIVCFG:-${HOME}/.icewm} ; do
+        if [[ -d "${_configpath}/icons" ]] ; then
+          for _currenticon in "${_configpath}/icons"/*.xpm ; do
+            [[ ! -e "${_currenticon}" ]] && continue
+            _currenticon="${_currenticon##*/}"
+            _currenticon="${_currenticon%_*}"
+            [[ "${_last}" = "${_currenticon}" ]] && continue
+            hashsetkey iconhash ${_currenticon} ""
+            _last="${_currenticon}"
+          done
+        fi
+      done
+      hashkeys _icons iconhash
+      for _currenticon in "${_icons[@]}" ; do
+        echo "prog \"${_currenticon}\" ${_currenticon} ${gl_progname} ${lc_main_task} ${lc_main_name} ${_currenticon}"
+      done
+    fi
+#[of]:    display separator
+    echo " separator"
+#[cf]
+    ;;
+#[cf]
+
+#[of]:  displaymimetypes)
+  displaymimetypes)
+    if [[ -z "${lc_main_name}" ]] ; then
+      echo "prog \"add mime\" app ${gl_progname} addmimetype prompt"
+#[of]:      display separator
+    echo " separator"
+#[cf]
+      hashkeys _keys mimetype
+      #asort _keys "${_keys[@]}"
+      for _key in "${_keys[@]}" ; do
+        hashgetkey _icon mimetype "${_key}"
+        echo "menuprog \"${_key}\" \"${_icon}\" ${gl_progname} ${lc_main_task} \"${_key}\""
+      done | sort -f
+    else
+      echo "menuprog \"del mime\" app ${gl_progname} delmimetype \"${lc_main_name}\""
+      echo "prog \"add action\" app ${gl_progname} addmimeaction \"${lc_main_name}\" prompt"
+      echo "menuprog \"set icon\" folder ${gl_progname} setmimeicon \"${lc_main_name}\""
+      echo "menuprog \"associate with ext\" folder ${gl_progname} pairtypewithext \"${lc_main_name}\""
+#[of]:      display separator
+    echo " separator"
+#[cf]
+      hashkeys _keys mimetype "${lc_main_name}" xaction
+      #asort _keys "${_keys[@]}"
+      for _key in "${_keys[@]}" ; do
+        hashgetkey _action mimetype "${lc_main_name}" xaction  "${_key}"
+        echo "menuprog \"${_key}\" app ${gl_progname} displaymimeaction \"${lc_main_name}\" \"${_key}\""
+      done | sort -f
+    fi
+    ;;
+#[cf]
+#[of]:  addmimetype)
+  addmimetype)
+    lc_main_option="$2"
+    case "${lc_main_option}" in
+      prompt)
+        if [[ -n "${DISPLAY}" ]] ; then
+          ${lc_main_terminal} -e bash -login -c "
+            ${gl_progname} ${lc_main_task} dialog
+          "
+        fi
+        ;;
+      dialog)
+        while true ; do
+          read -p "enter new mime type: " -e lc_main_name
+#[of]:          if empty entry cancel add
+          if [[ -z "${lc_main_name}" ]] ; then
+            echo "no new entry given.  canceling mimetype add."
+            sleep 4
+            exit
+          fi
+#[cf]
+#[of]:          if not usual mime format
+          if [[ -n "${lc_main_name##*/*}" ]] ; then
+            echo "mimes are usually built as {major group}/{minor group} i.e. text/script"
+            continue
+          fi
+#[cf]
+#[of]:          if mime already exist
+          if hashgetkey ! mimetype "${lc_main_name}" ; then
+            echo "mimetype already exist.  choose a different name."
+            continue
+          fi
+          break
+#[cf]
+        done
+        hashsetkey mimetype "${lc_main_name}" ""
+        savemimecache
+        ;;
+    esac
+    ;;
+#[cf]
+#[of]:  delmimetype)
+  delmimetype)
+    lc_main_option="$3"
+    if [[ "${lc_main_option}" != "yes" ]] ; then
+      echo "prog \"perform delete\" app ${gl_progname} ${lc_main_task} \"${lc_main_name}\" yes"
+    else
+      hashdel mimetype "${lc_main_name}" xaction
+      hashdelkey mimetype "${lc_main_name}"
+      savemimecache
+    fi
+    ;;
+#[cf]
+#[of]:  pairtypewithext)
+  pairtypewithext)
+    echo "prog \"add mime ext\" app ${gl_progname} addmimeext prompt"
+#[of]:    display separator
+    echo " separator"
+#[cf]
+    hashkeys _keys mimeext
+    #asort _keys "${_keys[@]}"
+    for _key in "${_keys[@]}" ; do
+      hashgetkey _mimetype mimeext "${_key}"
+      hashgetkey _icon mimetype "${_mimetype}"
+      echo "prog \"${_key}\" \"${_icon}\" ${gl_progname} pairextwithtype \"${_key}\" \"${lc_main_name}\""
+    done | sort -f
+    ;;
+#[cf]
+
+#[of]:  displaymimeaction)
+  displaymimeaction)
+    lc_main_action="$3"
+    hashgetkey _action mimetype "${lc_main_name}" xaction "${lc_main_action}"
+    echo "menuprog \"del action\" app ${gl_progname} delmimeaction \"${lc_main_name}\" \"${lc_main_action}\""
+#[of]:    display separator
+    echo " separator"
+#[cf]
+    echo "menuprog \"${_action//\"/\\\"}\" app ${gl_progname} editmimeaction \"${lc_main_name}\""
+    ;;
+#[cf]
+#[of]:  editmimeaction)
+  editmimeaction)
+#[c]    can a readline be presented in a terminal?
+    ;;
+#[cf]
+#[of]:  addmimeaction)
+  addmimeaction)
+    lc_main_option="$3"
+    case "${lc_main_option}" in
+      menuprompt)
+        echo "prog \"add action\" app ${gl_progname} ${lc_main_task} \"${lc_main_name}\" prompt"
+        ;;
+      prompt)
+        if [[ -n "${DISPLAY}" ]] ; then
+          ${lc_main_terminal} -e bash -login -c "
+            ${gl_progname} ${lc_main_task} \"${lc_main_name}\" dialog
+          "
+        fi
+        ;;
+      dialog)
+#[of]:        does mime exist?
+      if ! hashgetkey ! mimetype "${lc_main_name}" ; then
+        echo "mimetype \"${lc_main_name}\" does not exist.  canceling mime action add."
+        sleep 4
+        exit
+      fi
+#[cf]
+#[of]:        get action
+      while true ; do
+        read -p "enter new action: " -e lc_main_action
+#[of]:        if empty entry cancel add
+          if [[ -z "${lc_main_action}" ]] ; then
+            echo "no new entry given.  canceling mime action add."
+            sleep 4
+            exit
+          fi
+#[cf]
+        if hashgetkey ! mimetype "${lc_main_name}" xaction "${lc_main_action}" ; then
+          echo "action for this mimetype already exist.  choose a different name."
+          continue
+        fi
+        break
+      done
+#[cf]
+#[of]:        get command
+      read -p "enter a command for the \"${lc_main_name}:${lc_main_action}\" action: " -e lc_main_command
+#[of]:      if empty entry cancel add
+          if [[ -z "${lc_main_command}" ]] ; then
+            echo "no command given.  canceling mime action add."
+            sleep 4
+            exit
+          fi
+#[cf]
+      hashsetkey mimetype "${lc_main_name}" xaction "${lc_main_action}" "${lc_main_command}"
+#[cf]
+        hashsetkey mimetype "${lc_main_name}" xaction "${lc_main_action}" "${lc_main_command}"
+        savemimecache
+        ;;
+    esac
+    ;;
+#[cf]
+#[of]:  delmimeaction)
+  delmimeaction)
+    lc_main_action="$3"
+    lc_main_option="$4"
+    if [[ "${lc_main_option}" != "yes" ]] ; then
+      echo "prog \"perform delete\" app ${gl_progname} ${lc_main_task} \"${lc_main_name}\" \"${lc_main_action}\" yes"
+    else
+      hashdelkey mimetype "${lc_main_name}" xaction "${lc_main_action}"
+      savemimecache
+    fi
+    ;;
+#[cf]
+#[cf]
+#[of]:  adjust config settings
+#[of]:  displaysettingsmenu)
+  displaysettingsmenu)
+    echo 'menuprog "max menu height" app dlist adjmaxmenuheight'
+    echo 'menuprog "display mime types" app dlist displaymimetypes'
+    echo 'menuprog "display mime exts" app dlist displaymimeexts'
+    ;;
+#[cf]
+#[of]:  adjmaxmenuheight)
+  adjmaxmenuheight)
+    if [[ -z "$2" ]] ; then
+      for ((lc_main_current=60;lc_main_current > 0;lc_main_current--)) ; do
+        echo "prog \"line ${lc_main_current}\" app ${gl_progname} adjmaxmenuheight ${lc_main_current}"
+      done
+      for ((lc_main_current=5;lc_main_current > 0;lc_main_current--)) ; do
+        echo "prog \"menu spacer ${lc_main_current}\" app ${gl_progname} adjmaxmenuheight 0"
+      done
+    elif [[ "$2" -ne 0 ]] ; then
+      echo "lc_main_maxmenuheight=$2" > "${gl_configfile}"
+    fi
+    ;;
+#[cf]
+#[cf]
+#[of]:  display list
+#[of]:  base|name)
+  base|name)
+#[of]:    setup vars
+    lc_main_currentprefix="$3"
+#[cf]
+#[of]:    create list
+    if [[ -d "${lc_main_name:-/}" ]] ; then
+      IFS=$'\n'
+#[of]:      read in name list
+      gl_namelist=( $(shopt -s nocaseglob;ls -AUd "${lc_main_name}/${lc_main_currentprefix}"{.*,*} 2>/dev/null | sort -u | grep -v "/\.\.\{0,1\}$") )
+#[cf]
+#[of]:      create summary list
+    if [[ $(( ${#gl_namelist[@]} )) -gt ${lc_main_maxmenuheight} ]] ; then
+      while [[ "${#gl_summarylist[@]}" -le 1 ]] ; do
+        lc_main_currentprefix=${lc_main_currentprefix}$(eval echo -e \"\\\x$(printf "%02X\n" ${!gl_summarylist[@]})\")
+        #echo ${lc_main_currentprefix}
+        unset gl_summarylist
+        for lc_main_current in "${gl_namelist[@]}" ; do
+          lc_main_current="${lc_main_current##*/}"
+          lc_main_current="${lc_main_current:${#lc_main_currentprefix}:1}"
+          if [[ "${lc_main_current}" = [a-zA-Z] ]] ; then
+            gl_summarylist[$((36#${lc_main_current}+87))]=y
+          else
+            printf -v lc_main_index %d "'${lc_main_current}"
+            [[ ${lc_main_index} -lt 0 ]] && ((lc_main_index += 256))
+            gl_summarylist[${lc_main_index}]=y
+          fi
+        done
+      done
+
+      #echo "--- ${lc_main_name} --- ${lc_main_currentprefix} ---"
+      if [[ -n "${lc_main_currentprefix}" &&
+        "${lc_main_currentprefix}" != "." &&
+        -e "${lc_main_name}/${lc_main_currentprefix}" ]]
+      then
+        gl_namelist=( "${lc_main_name}/${lc_main_currentprefix}" )
+      else
+        unset gl_namelist
+      fi
+    fi
+#[cf]
+    fi
+#[of]:    parse each file type
+    for lc_main_current in "${gl_namelist[@]}" ; do
+      lc_main_displayname="${lc_main_current/_/_ }"
+      lc_main_displayname="${lc_main_displayname##*/}"
+      if [[ -d "${lc_main_current}" ]] ; then
+#[of]:        dirlist
+        ##store dir entry
+        gl_dirlist[${#gl_dirlist[@]}]="menuprog \"${lc_main_displayname}\" folder ${gl_progname} name \"${lc_main_current}\"\n"
+#[cf]
+      else
+#[of]:        filelist
+    lc_main_icon="file"
+    lc_main_runaction="prog"
+    unset lc_main_runprog
+    shopt -s nocasematch
+#[of]:    if file
+    if [[ -f "${lc_main_current}" ]] ; then
+      #parsefiles
+      getmime "${lc_main_current}"
+#[cf]
+#[of]:    if block device
+    elif [[ -b "${lc_main_current}" ||
+      -c "${lc_main_current}" ||
+      -p "${lc_main_current}" ||
+      -S "${lc_main_current}" ]] ; then
+        lc_main_icon="koules"
+        lc_main_runprog="false"
+#[cf]
+#[of]:    if not exist
+    elif [[ ! -e "${lc_main_current}" ]] ; then
+      lc_main_icon="bomb"
+      lc_main_runaction="menuprog"
+      lc_main_runprog="${gl_progname} name \"${lc_main_current}\""
+#[cf]
+#[of]:    else
+    else
+      lc_main_icon="bomb"
+      lc_main_runprog="${lc_main_defaulteditor} \"${lc_main_current}\""
+#[cf]
+    fi
+    shopt -u nocasematch
+    ##store file entry
+    if [[ -n "${lc_main_runprog}" ]] ; then
+      gl_filelist[${#gl_filelist[@]}]="${lc_main_runaction} \"${lc_main_displayname}\" ${lc_main_icon} ${lc_main_runprog}\n"
+    fi
+#[cf]
+      fi
+    done
+#[cf]
+#[cf]
+#[of]:    display options
+    lc_main_current="${lc_main_name##*/}"
+    lc_main_current="${lc_main_current:-/}"
+    lc_main_current="${lc_main_current/_/_ }"
+#[of]:    display menu options
+    if [[ "${lc_main_name:-/}" != "/" ]] ; then
+      if lc_main_nameowner="$(set -o pipefail;grep -l "^menuprog \"${lc_main_name:-/}${lc_main_currentprefix:+/${lc_main_currentprefix}\*}\"" ${gl_menufile}* | tail -1)" ; then
+        echo "menuprog \"put ${lc_main_current}${lc_main_currentprefix:+/${lc_main_currentprefix}*} into\" folder ${gl_progname} putnameingroup \"${lc_main_name:-/}\" \"${lc_main_currentprefix}\""
+        [[ -n "${lc_main_nameowner##*-*}" ]] && unset lc_main_nameowner
+        lc_main_nameowner="${lc_main_nameowner##*/}"
+        lc_main_nameowner="${lc_main_nameowner#*-}"
+        echo "menuprog \"move ${lc_main_current}${lc_main_currentprefix:+/${lc_main_currentprefix}*} above\" folder ${gl_progname} movname \"${lc_main_nameowner}\" \"${lc_main_name:-/}\" \"${lc_main_currentprefix}\""
+        echo "prog \"remove ${lc_main_current}${lc_main_currentprefix:+/${lc_main_currentprefix}*}\" app ${gl_progname} remname \"${lc_main_nameowner}\" \"${lc_main_name:-/}\" \"${lc_main_currentprefix}\""
+      else
+        if [[ -d "${lc_main_name:-/}" || -n "${lc_main_currentprefix}" ]] ; then
+          echo "prog \"Add ${lc_main_current}${lc_main_currentprefix:+/${lc_main_currentprefix}*}\" app ${gl_progname} addname \"${lc_main_name:-/}\" \"${lc_main_currentprefix}\""
+        fi
+      fi
+    fi
+#[of]:    display separator
+    echo " separator"
+#[cf]
+#[cf]
+#[of]:    display dir options
+    lc_main_name="${lc_main_name:-/}"
+    if [[ -d "${lc_main_name}" ]] ; then
+      if [ -L "${lc_main_name}" ] ; then
+        ##echo file is a link ${input1}
+        ##echo it points to `readlink -f ${input1}`
+        lc_main_realname="$(readlink -f "${lc_main_name}")"
+        lc_main_realname="${lc_main_realname/_/_ }"
+        echo "prog \"Open ${lc_main_current} -\> ${lc_main_realname}\" folder rox \"${lc_main_name}\""
+      else
+        echo "prog \"Open ${lc_main_current}\" folder rox \"${lc_main_name}\""
+      fi
+      echo "prog \"Xterm ${lc_main_current}\" app xterm-here \"${lc_main_name}\""
+      echo "prog \"rXterm ${lc_main_current}\" app remote-here \"${lc_main_name}\""
+      if [[ -n "${lc_main_currentprefix}" ]] ; then
+        echo "menuprog \"..\" folder dlist name \"${lc_main_name}\""
+      elif [[ -n "${lc_main_name#/}" ]] ; then
+        echo "menuprog \"..\" folder dlist name \"${lc_main_name%/*}/\""
+      fi
+#[of]:      display separator
+    echo " separator"
+#[cf]
+    elif [[ ! -e "${lc_main_name}" ]] ; then
+      if [[ -L "${lc_main_name}" ]] ; then
+        echo "prog \"dead link\" bomb false"
+      else
+        echo "prog \"directory not found\" bomb false"
+      fi
+    else
+      echo "prog \"second arg must be a directory\" file false"
+    fi
+#[cf]
+#[cf]
+#[of]:    display list
+    [[ -n "${gl_dirlist[@]}" ]] && echo -ne " ${gl_dirlist[@]}"
+    [[ -n "${gl_filelist[@]}" ]] && echo -ne " ${gl_filelist[@]}"
+
+    if [[ -n "${gl_summarylist[@]}" ]] ; then
+      echo " separator"
+      echo " separator"
+      for lc_main_current in "${!gl_summarylist[@]}" ; do
+        lc_main_current=$(eval echo -e \"\\\x$(printf "%02X\n" ${lc_main_current})\")
+        if [[ -n "${lc_main_current}" ]] ; then
+          echo "menuprog \"${lc_main_currentprefix/_/_ }${lc_main_current/_/_ }\" folder ${gl_progname} name \"${lc_main_name:-/}\" \"${lc_main_currentprefix}${lc_main_current}\""
+        fi
+      done
+    fi
+#[cf]
+#[of]:    force refresh of icewm menu
+    [[ "${lc_main_task}" = "base" ]] && refreshmenu
+#[cf]
+    ;;
+#[cf]
+#[of]:  displayactionmenu)
+  displayactionmenu)
+    set -- "$3"
+    hashkeys _keys mimetype "${lc_main_name}" xaction
+    #asort _keys "${_keys[@]}"
+    for _key in "${_keys[@]}" ; do
+      hashgetkey lc_main_runprog mimetype "${lc_main_name}" xaction "${_key}"
+      lc_main_runprog="${lc_main_runprog//\"/\\\"}"
+      eval "lc_main_runprog=\"${lc_main_runprog}\""
+      echo "prog \"${_key}\" app ${lc_main_runprog}"
+    done | sort -f
+    ;;
+#[cf]
+#[of]:  appmenu)
+  appmenu)
+    fileext lc_main_ext "${lc_main_name}"
+    [[ -n "${lc_main_ext}" ]] && \
+      echo "menuprog \"associate .${lc_main_ext} with mime\" folder ${gl_progname} pairextwithtype \"${lc_main_ext}\""
+#[of]:    display separator
+    echo " separator"
+#[cf]
+    ${gl_progname} displayactionmenu "text/plain" "${lc_main_name}"
+    [ -x "${lc_main_name}" ] && echo "prog \"run\" app \"${lc_main_name}\""
+    ;;
+#[cf]
+#[of]:  *) display main group
+  *)
+    [[ -s "${gl_menufile}" ]] && cleancat "${gl_menufile}"
+    echo "menuprog \"/\" folder ${gl_progname} base \"/\""
+    ;;
+#[cf]
+#[cf]
+esac
+#[cf]
+#[of]:exit success
+exit 0
+#[cf]
+#[cf]

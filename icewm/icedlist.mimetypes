@@ -1,0 +1,105 @@
+mimeext__count=26
+mimeext__data_asm=text/plain
+mimeext__data_avi=video/anything
+mimeext__data_bmp=image/anything
+mimeext__data_bsh=text/plain
+mimeext__data_conf=text/plain
+mimeext__data_dat=video/anything
+mimeext__data_gif=image/anything
+mimeext__data_jpeg=image/anything
+mimeext__data_jpg=image/anything
+mimeext__data_m3u=audio/anything
+mimeext__data_mov=video/anything
+mimeext__data_mp3=audio/anything
+mimeext__data_mpeg=video/anything
+mimeext__data_mpg=video/anything
+mimeext__data_ogg=audio/anything
+mimeext__data_pas=text/plain
+mimeext__data_pdf=text/pdf
+mimeext__data_php=text/plain
+mimeext__data_png=image/anything
+mimeext__data_qt=video/anything
+mimeext__data_sclass=text/plain
+mimeext__data_sh=text/plain
+mimeext__data_tga=image/anything
+mimeext__data_tif=image/anything
+mimeext__data_txt=text/plain
+mimeext__data_xpm=image/anything
+mimeext__first=avi
+mimeext__last=ogg
+mimeext__meta_asm=([0]="asm" [1]="xpm" [2]="pas")
+mimeext__meta_avi=([0]="avi" [2]="bsh")
+mimeext__meta_bmp=([0]="bmp" [1]="mp3" [2]="pdf")
+mimeext__meta_bsh=([0]="bsh" [1]="avi" [2]="jpeg")
+mimeext__meta_conf=([0]="conf" [1]="dat" [2]="sh")
+mimeext__meta_dat=([0]="dat" [1]="qt" [2]="conf")
+mimeext__meta_gif=([0]="gif" [1]="jpg" [2]="mpg")
+mimeext__meta_jpeg=([0]="jpeg" [1]="bsh" [2]="jpg")
+mimeext__meta_jpg=([0]="jpg" [1]="jpeg" [2]="gif")
+mimeext__meta_m3u=([0]="m3u" [1]="txt" [2]="mp3")
+mimeext__meta_mov=([0]="mov" [1]="pdf" [2]="mpeg")
+mimeext__meta_mp3=([0]="mp3" [1]="m3u" [2]="bmp")
+mimeext__meta_mpeg=([0]="mpeg" [1]="mov" [2]="qt")
+mimeext__meta_mpg=([0]="mpg" [1]="gif" [2]="tga")
+mimeext__meta_ogg=([0]="ogg" [1]="php")
+mimeext__meta_pas=([0]="pas" [1]="asm" [2]="txt")
+mimeext__meta_pdf=([0]="pdf" [1]="bmp" [2]="mov")
+mimeext__meta_php=([0]="php" [1]="sclass" [2]="ogg")
+mimeext__meta_png=([0]="png" [1]="tga" [2]="tif")
+mimeext__meta_qt=([0]="qt" [1]="mpeg" [2]="dat")
+mimeext__meta_sclass=([0]="sclass" [1]="sh" [2]="php")
+mimeext__meta_sh=([0]="sh" [1]="conf" [2]="sclass")
+mimeext__meta_tga=([0]="tga" [1]="mpg" [2]="png")
+mimeext__meta_tif=([0]="tif" [1]="png" [2]="xpm")
+mimeext__meta_txt=([0]="txt" [1]="pas" [2]="m3u")
+mimeext__meta_xpm=([0]="xpm" [1]="tif" [2]="asm")
+mimetype__count=5
+mimetype__data_audio2Fanything=xmms
+mimetype__data_image2Fanything=gimv
+mimetype__data_text2Fpdf=acroread
+mimetype__data_text2Fplain=nedit
+mimetype__data_video2Fanything=mplayer
+mimetype__first=image2Fanything
+mimetype__last=text2Fpdf
+mimetype__meta_audio2Fanything=([0]="audio/anything" [1]="text2Fplain" [2]="text2Fpdf")
+mimetype__meta_image2Fanything=([0]="image/anything" [2]="video2Fanything")
+mimetype__meta_text2Fpdf=([0]="text/pdf" [1]="audio2Fanything")
+mimetype__meta_text2Fplain=([0]="text/plain" [1]="video2Fanything" [2]="audio2Fanything")
+mimetype__meta_video2Fanything=([0]="video/anything" [1]="image2Fanything" [2]="text2Fplain")
+mimetype_audio2Fanything_xaction__count=1
+mimetype_audio2Fanything_xaction__data_play='xmms "$@"'
+mimetype_audio2Fanything_xaction__first=play
+mimetype_audio2Fanything_xaction__last=play
+mimetype_audio2Fanything_xaction__meta_play=([0]="play")
+mimetype_image2Fanything_xaction__count=1
+mimetype_image2Fanything_xaction__data_view='gimv -d "${1%/*}"'
+mimetype_image2Fanything_xaction__first=view
+mimetype_image2Fanything_xaction__last=view
+mimetype_image2Fanything_xaction__meta_view=([0]="view")
+mimetype_text2Fpdf_xaction__count=1
+mimetype_text2Fpdf_xaction__data_view='acroread "$@"'
+mimetype_text2Fpdf_xaction__first=view
+mimetype_text2Fpdf_xaction__last=view
+mimetype_text2Fpdf_xaction__meta_view=([0]="view")
+mimetype_text2Fplain_xaction__count=2
+mimetype_text2Fplain_xaction__data_code2Dedit='code-browser "$@"'
+mimetype_text2Fplain_xaction__data_edit='nedit "$@"'
+mimetype_text2Fplain_xaction__first=code2Dedit
+mimetype_text2Fplain_xaction__last=edit
+mimetype_text2Fplain_xaction__meta_code2Dedit=([0]="code-edit" [2]="edit")
+mimetype_text2Fplain_xaction__meta_edit=([0]="edit" [1]="code2Dedit")
+mimetype_video2Fanything_xaction__count=6
+mimetype_video2Fanything_xaction__data_view='mplayer -mixer-channel vol -vo x11 "$@"'
+mimetype_video2Fanything_xaction__data_view2Dblur='mplayer -display :0 -mixer-channel vol -framedrop -vo xv -vf scale=440:-2 -ssf lgb=.9 "$@"'
+mimetype_video2Fanything_xaction__data_view2Dd0='mplayer -mixer-channel vol -display :0 -vo xv "$@"'
+mimetype_video2Fanything_xaction__data_view2Ddo2Da1='mplayer -mixer-channel vol -display :0 -vo xv -stereo 1 "$@"'
+mimetype_video2Fanything_xaction__data_view2Didx='mplayer -mixer-channel vol -vo x11 -forceidx "$@"'
+mimetype_video2Fanything_xaction__data_view2Dloop='mplayer -display :0 -mixer-channel vol -osdlevel 0 -vo xv -fs -loop 0 "$@"'
+mimetype_video2Fanything_xaction__first=view2Dloop
+mimetype_video2Fanything_xaction__last=view2Ddo2Da1
+mimetype_video2Fanything_xaction__meta_view=([0]="view" [1]="view2Dd0" [2]="view2Didx")
+mimetype_video2Fanything_xaction__meta_view2Dblur=([0]="view-blur" [1]="view2Dloop" [2]="view2Dd0")
+mimetype_video2Fanything_xaction__meta_view2Dd0=([0]="view-d0" [1]="view2Dblur" [2]="view")
+mimetype_video2Fanything_xaction__meta_view2Ddo2Da1=([0]="view-do-a1" [1]="view2Didx")
+mimetype_video2Fanything_xaction__meta_view2Didx=([0]="view-idx" [1]="view" [2]="view2Ddo2Da1")
+mimetype_video2Fanything_xaction__meta_view2Dloop=([0]="view-loop" [2]="view2Dblur")
