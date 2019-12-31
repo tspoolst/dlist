@@ -399,7 +399,7 @@ try: ./install {path to config dir}
   i.e. ./install /opt/icewm"
 #[cf]
 #[of]:install dlist menu files
-cp -fav icewm/icedlist.{menu,mimetypes} ${_configdir}/ &&
+cp -fav usr/share/icewm/icedlist.{menu,mimetypes} ${_configdir}/ &&
 chmod 644 ${_configdir}/icedlist.{menu,mimetypes}
 #[cf]
 #[of]:add menu entry
@@ -419,6 +419,6 @@ done < <(cleancat /etc/passwd)
 #[cf]
 #[of]:install prog and docs
 cp -avf usr /
-cp -avf COPYING CREDITS ChangeLog INSTALL NEWS README /usr/share/doc/dlist-1/
+cp -avf COPYING CREDITS ChangeLog INSTALL.txt NEWS README /usr/share/doc/dlist-1/
 #[cf]
 #[cf]

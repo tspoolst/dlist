@@ -57,7 +57,8 @@ if [ -n "$BASH_VERSION" ] ; then
     else
       lc_tolower_data="$2"
     fi
-    typeset lc_tolower_result=$(echo "${lc_tolower_data}" | tr A-Z a-z)
+    typeset lc_tolower_result
+		lc_tolower_result=$(echo "${lc_tolower_data}" | tr A-Z a-z)
     if [[ "$1" = "-" ]] ; then
       echo "${lc_tolower_result}"
     else
@@ -73,7 +74,8 @@ else
     else
       lc_tolower_data="$2"
     fi
-    typeset -l lc_tolower_result="${lc_tolower_data}"
+    typeset -l lc_tolower_result
+		lc_tolower_result="${lc_tolower_data}"
     if [[ "$1" = "-" ]] ; then
       echo "${lc_tolower_result}"
     else
@@ -86,7 +88,8 @@ fi
 #[of]:function isnum {
 function isnum {
   #set IFS to a sane value
-  typeset IFS=' 	
+  typeset IFS
+	IFS=' 	
 '
   if [[ "$1" == ?(+|-)+([0-9]) ]] ; then
    return 0
@@ -200,9 +203,11 @@ function asplit {
   if [[ -z "$2" ]] ; then
     eval "
       shift;shift
-      typeset _string=\"\$*\"
+      typeset _string
+			_string=\"\$*\"
       while [[ \${#_string} -gt 0 ]] ; do
-        typeset _array[\${#_array[@]}]=\"\${_string%\"\${_string#?}\"}\"
+        typeset _array
+				_array[\${#_array[@]}]=\"\${_string%\"\${_string#?}\"}\"
         _string=\"\${_string#?}\"
       done
       if isnum \"$1\" ; then
@@ -217,9 +222,12 @@ function asplit {
     eval "
       shift;shift
       typeset _array _char
-      typeset _lit=false
-      typeset _index=0
-      typeset _string=\"\$*\"
+      typeset _lit
+			_lit=false
+      typeset _index
+			_index=0
+      typeset _string
+			_string=\"\$*\"
 
       while [[ \${#_string} -gt 0 ]] ; do
         _char=\"\${_string%\"\${_string#?}\"}\"
@@ -234,7 +242,8 @@ function asplit {
           continue
         fi
         _lit=false
-        typeset _entry=\"\${_entry}\${_char}\"
+        typeset _entry
+				_entry=\"\${_entry}\${_char}\"
       done
       _array[\${_index}]=\"\${_entry}\"
 
@@ -249,7 +258,8 @@ function asplit {
   else
     eval "
       shift;shift
-      typeset IFS=\"$2\"
+      typeset IFS
+			IFS=\"$2\"
       if isnum \"$1\" ; then
         set -- \$@
         eval \"echo \\\"\\\$\$(($1 +1))\\\" \"
@@ -285,7 +295,8 @@ function ajoin {
 #[cf]
   eval "
     shift;shift
-    typeset IFS=\"$2\"
+    typeset IFS
+		IFS=\"$2\"
     if [[ \"$1\" = \"-\" ]] ; then
       echo \"\$*\"
     else
@@ -572,12 +583,14 @@ function hashkeys {
       lc_hashkeys_key=\${${lc_hashkeys_hash}__first}
       while eval [[ -n \\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[2]}\\\" ]] ; do
         eval \"
-          typeset lc_hashkeys_hashkeys[\\\${#lc_hashkeys_hashkeys[@]}]=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[0]}\\\"
+          typeset lc_hashkeys_hashkeys
+					lc_hashkeys_hashkeys[\\\${#lc_hashkeys_hashkeys[@]}]=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[0]}\\\"
           lc_hashkeys_key=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[2]}\\\"
         \"
       done
       eval \"
-        typeset lc_hashkeys_hashkeys[\\\${#lc_hashkeys_hashkeys[@]}]=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[0]}\\\"
+        typeset lc_hashkeys_hashkeys
+				lc_hashkeys_hashkeys[\\\${#lc_hashkeys_hashkeys[@]}]=\\\"\\\${${lc_hashkeys_hash}__meta_\${lc_hashkeys_key}[0]}\\\"
       \"
     else
       [[ \"${lc_hashkeys_return}\" != \"-\" ]] && unset ${lc_hashkeys_return}
@@ -595,7 +608,8 @@ function hashkeys {
 #[of]:function hashdump {
 function hashdump {
 #[c]-r hash [key...key...]
-  typeset _hash _key _id _tmp _raw _filter=true
+  typeset _hash _key _id _tmp _raw _filter
+	_filter=true
   if [[ "$1" = "-r" ]] ; then
     _raw=true
     unset _filter
@@ -981,7 +995,8 @@ function hashgetnext {
 function hashconvert2key {
 #[c][var] value
   typeset lc_hashconvert2key_string lc_hashconvert2key_char lc_hashconvert2key_hexpart lc_hashconvert2key_key
-  typeset _forcelower=false
+  typeset _forcelower
+	_forcelower=false
   if [[ "$1" = "-l" ]] ; then
     _forcelower=true
     shift
@@ -1925,3 +1940,4 @@ esac
 exit 0
 #[cf]
 #[cf]
+# vim:number:tabstop=2:shiftwidth=2:autoindent:foldmethod=marker:foldlevel=0:foldmarker=#[of]\:,#[cf]
