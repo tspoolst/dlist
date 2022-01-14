@@ -419,6 +419,7 @@ done < <(cleancat /etc/passwd)
 #[cf]
 #[of]:install prog and docs
 cp -avf usr /
+mkdir -p /usr/share/doc/dlist-1
 cp -avf COPYING CREDITS ChangeLog INSTALL.txt NEWS README /usr/share/doc/dlist-1/
 #[cf]
 #[cf]
