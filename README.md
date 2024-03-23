@@ -11,12 +11,13 @@ and launching apps.
 each directory is represented by an entry in the launch menu.
 directories that are too large to be viewed in one screen are summerized.
 menu links can be created to directories and summaries.
-links can be placed into groups
-groups can be placed into groups
-using shell based mime types, files can be launched with one or more applications
+links can be placed into groups.
+groups can be placed into groups.
+using shell based mime types, files can be launched with one or more applications.
 
 
-https://www.scriptvoodoo.org/Projectsdlist.html
+Check out these sample pictures to get a better idea of what the ICEWM QDL does.
+The DLIST homepage http://scriptvoodoo.org/Projectsdlist.html
 
 
 INSTALLATION
@@ -59,9 +60,7 @@ ACKNOWLEDGEMENTS
 
 AUTHOR
 
-Trent Spoolstra <ts@worldiss.com>
-
-The DLIST homepage is located at http://scriptvoodoo.org/Projectsdlist.html
+Trent Spoolstra <tspoolst@gmail.com>
 
 
 SEE ALSO
