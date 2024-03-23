@@ -16,8 +16,8 @@ groups can be placed into groups.
 using shell based mime types, files can be launched with one or more applications.
 
 
-Check out these sample pictures to get a better idea of what the ICEWM QDL does.
-The DLIST homepage http://scriptvoodoo.org/Projectsdlist.html
+Check out these sample pictures to get a better idea of what the ICEWM QDL does
+on the DLIST homepage http://scriptvoodoo.org/Projectsdlist.html
 
 
 INSTALLATION
